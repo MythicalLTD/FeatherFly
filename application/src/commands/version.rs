@@ -14,11 +14,7 @@ impl crate::commands::CliCommand<VersionArgs> for VersionCommand {
     fn get_executor(self) -> Box<crate::commands::ExecutorFunc> {
         Box::new(|_config, _arg_matches| {
             Box::pin(async move {
-                println!(
-                    "featherfly {} ({})",
-                    crate::full_version(),
-                    crate::TARGET
-                );
+                println!("featherfly {} ({})", crate::full_version(), crate::TARGET);
                 println!("{}", crate::GITHUB_REPOSITORY);
                 println!("{}", crate::PROJECT_WEBSITE);
                 println!("license: {}", crate::PROJECT_LICENSE);

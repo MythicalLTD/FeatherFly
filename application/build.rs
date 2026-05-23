@@ -18,8 +18,7 @@ fn handle_git_info() {
     let is_git_repo = Command::new("git")
         .args(["rev-parse", "--is-inside-work-tree"])
         .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false);
+        .is_ok_and(|output| output.status.success());
 
     let mut git_hash = "unknown".to_string();
 

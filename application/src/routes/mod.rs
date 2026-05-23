@@ -5,6 +5,8 @@ use utoipa_axum::router::OpenApiRouter;
 
 pub mod api;
 
+mod health;
+
 #[derive(Debug, ToSchema, Serialize, Clone, Copy)]
 #[serde(rename_all = "snake_case")]
 pub enum AppContainerType {
@@ -14,6 +16,7 @@ pub enum AppContainerType {
 }
 
 pub struct AppState {
+    #[allow(dead_code)]
     pub start_time: Instant,
     pub container_type: AppContainerType,
     pub version: String,
@@ -37,6 +40,7 @@ pub type GetState = axum::extract::State<State>;
 
 pub fn router(state: &State) -> OpenApiRouter<State> {
     OpenApiRouter::new()
+        .routes(utoipa_axum::routes!(health::route))
         .nest("/api", api::router(state))
         .with_state(state.clone())
 }

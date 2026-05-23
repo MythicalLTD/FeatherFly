@@ -1,0 +1,94 @@
+name: Dev Build
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  BIN_NAME: featherfly
+  PROJECT_NAME: featherfly
+
+jobs:
+  dist:
+    name: Release build (${{ matrix.build }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        build:
+          - x86_64-linux
+          - aarch64-linux
+        include:
+          - build: x86_64-linux
+            os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - build: aarch64-linux
+            os: ubuntu-24.04
+            target: aarch64-unknown-linux-gnu
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          cache-key: dev-${{ matrix.target }}
+
+      - name: Install cross
+        if: matrix.build == 'aarch64-linux'
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Run tests
+        run: |
+          if [ "${{ matrix.build }}" = "aarch64-linux" ]; then
+            cross test --release --target ${{ matrix.target }}
+          else
+            cargo test --release
+          fi
+
+      - name: Build release binary
+        run: |
+          mkdir -p dist
+          if [ "${{ matrix.build }}" = "aarch64-linux" ]; then
+            cross build --release --target ${{ matrix.target }}
+            cp "target/${{ matrix.target }}/release/$BIN_NAME" "dist/$BIN_NAME-dev-${{ matrix.build }}"
+          else
+            cargo build --release
+            cp "target/release/$BIN_NAME" "dist/$BIN_NAME-dev-${{ matrix.build }}"
+          fi
+
+      - name: Upload dev binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-dev-${{ matrix.build }}-${{ github.sha }}
+          path: dist/${{ env.BIN_NAME }}-dev-${{ matrix.build }}
+          retention-days: 14
+
+  summary:
+    name: Dev build summary
+    needs: [dist]
+    runs-on: ubuntu-24.04
+    if: always()
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        run: echo "val=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name==\"featherfly\") | .version')" >> $GITHUB_OUTPUT
+
+      - name: Write job summary
+        run: |
+          {
+            echo "## FeatherFly dev build"
+            echo
+            echo "- Commit: \`${{ github.sha }}\`"
+            echo "- Version: \`${{ steps.version.outputs.val }}\`"
+            echo "- Branch: \`${{ github.ref_name }}\`"
+            echo "- Artifacts: \`featherfly-dev-x86_64-linux-${{ github.sha }}\`, \`featherfly-dev-aarch64-linux-${{ github.sha }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

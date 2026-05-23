@@ -1,8 +1,16 @@
 [package]
 name = "featherfly"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description.workspace = true
 rust-version = { workspace = true }
-version = "0.1.0"
-edition = "2024"
+
+[lints]
+workspace = true
 
 [dependencies]
 tracing = "0.1.41"
@@ -23,6 +31,9 @@ chrono = { version = "0.4.40", features = ["serde"] }
 sysinfo = "0.39.0"
 constant_time_eq = "0.5.0"
 serde_json = "1.0.139"
+
+[dev-dependencies]
+tempfile = "3.25.0"
 
 [build-dependencies]
 serde = { workspace = true }

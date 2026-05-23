@@ -1,6 +1,6 @@
 app_name: FeatherFly
-debug: true
-token: "suntgayraudetot20020"
+debug: false
+token: "change-me-to-a-long-random-string"
 
 api:
   host: 0.0.0.0

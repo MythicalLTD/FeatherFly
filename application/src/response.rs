@@ -11,6 +11,7 @@ pub struct ApiResponse {
 
 impl ApiResponse {
     #[inline]
+    #[allow(dead_code)]
     pub fn new(body: axum::body::Body) -> Self {
         Self {
             body,

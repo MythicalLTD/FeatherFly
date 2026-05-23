@@ -9,9 +9,9 @@ use colored::Colorize;
 use std::sync::Arc;
 
 use clap::parser::ValueSource;
-use utoipa::openapi::security::{Http, HttpAuthScheme, SecurityScheme};
-use utoipa::openapi::security::SecurityRequirement;
 use utoipa::openapi::ServerBuilder;
+use utoipa::openapi::security::SecurityRequirement;
+use utoipa::openapi::security::{Http, HttpAuthScheme, SecurityScheme};
 
 use crate::response::ApiResponse;
 
@@ -26,6 +26,7 @@ async fn handle_request(req: Request, next: Next) -> Result<Response<Body>, Stat
     Ok(next.run(req).await)
 }
 
+mod auth;
 mod commands;
 mod config;
 mod docs;
@@ -45,7 +46,7 @@ pub(crate) const GITHUB_REPOSITORY: &str = "https://github.com/mythicalltd/feath
 pub(crate) const PROJECT_WEBSITE: &str = "https://featherpanel.com";
 pub(crate) const PROJECT_LICENSE: &str = "MIT";
 
-fn full_version() -> String {
+pub(crate) fn full_version() -> String {
     if GIT_BRANCH == "unknown" {
         VERSION.to_string()
     } else {
@@ -81,52 +82,42 @@ async fn main_rt() {
     let config_from_cli = matches
         .value_source("config")
         .is_some_and(|source| source == ValueSource::CommandLine);
-    let config_path = match crate::config::Config::resolve_config_path(
-        debug,
-        config_explicit,
-        config_from_cli,
-    ) {
-        Ok(path) => path,
-        Err(err) => {
-            eprintln!("failed to resolve config path: {err:#?}");
-            std::process::exit(1);
-        }
-    };
+    let config_path =
+        match crate::config::Config::resolve_config_path(debug, config_explicit, config_from_cli) {
+            Ok(path) => path,
+            Err(err) => {
+                eprintln!("failed to resolve config path: {err:#?}");
+                std::process::exit(1);
+            }
+        };
 
     if matches.subcommand().is_none() {
         print_banner();
     }
 
-    let config = crate::config::Config::open(
-        &config_path,
-        debug,
-        matches.subcommand().is_some(),
-    );
+    let config = crate::config::Config::open(&config_path, debug, matches.subcommand().is_some());
 
-    match matches.remove_subcommand() {
-        Some((command, arg_matches)) => {
-            if let Some((func, arg_matches)) = cli.match_command(command, arg_matches) {
-                match func(config.as_ref().ok().map(|e| e.0.clone()), arg_matches).await {
-                    Ok(exit_code) => {
-                        drop(config);
-                        std::process::exit(exit_code);
-                    }
-                    Err(err) => {
-                        drop(config);
-                        eprintln!(
-                            "{}: {:#?}",
-                            "an error occurred while running cli command".red(),
-                            err
-                        );
-                        std::process::exit(1);
-                    }
+    if let Some((command, arg_matches)) = matches.remove_subcommand() {
+        if let Some((func, arg_matches)) = cli.match_command(command, arg_matches) {
+            match func(config.as_ref().ok().map(|e| e.0.clone()), arg_matches).await {
+                Ok(exit_code) => {
+                    drop(config);
+                    std::process::exit(exit_code);
                 }
-            } else {
-                cli.print_help();
-                std::process::exit(0);
+                Err(err) => {
+                    drop(config);
+                    eprintln!(
+                        "{}: {:#?}",
+                        "an error occurred while running cli command".red(),
+                        err
+                    );
+                    std::process::exit(1);
+                }
             }
+        } else {
+            cli.print_help();
+            std::process::exit(0);
         }
-        None => {}
     }
 
     let (config, _guard) = match config {
@@ -161,11 +152,14 @@ async fn main_rt() {
 
     let (mut router, mut openapi) = app.split_for_parts();
     openapi.info.version = crate::VERSION.into();
-    openapi.info.description = Some(
-        "FeatherFly web hosting daemon API — part of the FeatherPanel ecosystem.".into(),
-    );
+    openapi.info.description =
+        Some("FeatherFly web hosting daemon API — part of the FeatherPanel ecosystem.".into());
     openapi.info.title = format!("{} API", config.load().app_name);
-    openapi.info.contact = None;
+    openapi.info.contact = Some(utoipa::openapi::ContactBuilder::new()
+        .name(Some("FeatherPanel"))
+        .url(Some(PROJECT_WEBSITE))
+        .email(Some("support@featherpanel.com"))
+        .build());
     openapi.info.license = Some(utoipa::openapi::License::new(PROJECT_LICENSE));
 
     openapi.components.as_mut().unwrap().add_security_scheme(

@@ -88,10 +88,13 @@ pub struct Config {
     pub path: String,
 }
 
-pub struct ConfigGuard(Option<(
-    tracing_appender::non_blocking::WorkerGuard,
-    tracing_appender::non_blocking::WorkerGuard,
-)>);
+pub struct ConfigGuard(
+    #[allow(dead_code)]
+    Option<(
+        tracing_appender::non_blocking::WorkerGuard,
+        tracing_appender::non_blocking::WorkerGuard,
+    )>,
+);
 
 impl std::ops::Deref for Config {
     type Target = ArcSwap<InnerConfig>;
@@ -133,7 +136,11 @@ impl Config {
         Ok(DEFAULT_CONFIG_PATH.to_string())
     }
 
-    pub fn open(path: &str, debug: bool, is_subcommand: bool) -> Result<(Arc<Self>, ConfigGuard), anyhow::Error> {
+    pub fn open(
+        path: &str,
+        debug: bool,
+        is_subcommand: bool,
+    ) -> Result<(Arc<Self>, ConfigGuard), anyhow::Error> {
         let file = File::open(path).context(format!("failed to open config file {path}"))?;
         let reader = std::io::BufReader::new(file);
         let mut inner: InnerConfig = serde_norway::from_reader(reader)
@@ -182,9 +189,10 @@ impl Config {
                 .build(&inner.system.log_directory)
                 .context("failed to create rolling log file appender")?;
 
-            let (file_appender, guard) = tracing_appender::non_blocking::NonBlockingBuilder::default()
-                .buffered_lines_limit(50)
-                .finish(latest_file.and(rolling_appender));
+            let (file_appender, guard) =
+                tracing_appender::non_blocking::NonBlockingBuilder::default()
+                    .buffered_lines_limit(50)
+                    .finish(latest_file.and(rolling_appender));
 
             let _ = tracing_subscriber::fmt()
                 .with_timer(tracing_subscriber::fmt::time::ChronoLocal::new(
@@ -258,5 +266,83 @@ impl Config {
                 "failed to remove pid file"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_config_path_debug_uses_local_config() {
+        let path = Config::resolve_config_path(true, None, false).unwrap();
+        assert!(path.ends_with("config.yml"));
+    }
+
+    #[test]
+    fn resolve_config_path_production_uses_etc() {
+        let path = Config::resolve_config_path(false, None, false).unwrap();
+        assert_eq!(path, "/etc/featherfly/config.yml");
+    }
+
+    #[test]
+    fn resolve_config_path_explicit_flag_wins() {
+        let path = Config::resolve_config_path(false, Some("/custom/config.yml"), true).unwrap();
+        assert_eq!(path, "/custom/config.yml");
+    }
+
+    #[test]
+    fn validate_inner_rejects_zero_port() {
+        let inner = InnerConfig {
+            app_name: "FeatherFly".into(),
+            debug: false,
+            token: String::new(),
+            api: ApiConfig {
+                host: "127.0.0.1".into(),
+                port: 0,
+                disable_openapi_docs: false,
+            },
+            system: SystemConfig {
+                root_directory: "/tmp/featherfly-test".into(),
+                log_directory: "/tmp/featherfly-test/logs".into(),
+                tmp_directory: "/tmp/featherfly-test/tmp".into(),
+                username: "featherfly".into(),
+                pid_file: "/tmp/featherfly-test/featherfly.pid".into(),
+            },
+        };
+
+        let error = super::Config::validate_inner(&inner).unwrap_err();
+        assert!(error.to_string().contains("api.port"));
+    }
+
+    #[test]
+    fn loads_config_from_yaml_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("config.yml");
+        std::fs::write(
+            &config_path,
+            r#"
+app_name: TestFly
+debug: true
+token: test-token
+api:
+  host: 127.0.0.1
+  port: 9090
+system:
+  root_directory: ./data
+  log_directory: ./logs
+  tmp_directory: ./tmp
+  username: featherfly
+  pid_file: ./featherfly.pid
+"#,
+        )
+        .unwrap();
+
+        let (config, _guard) = Config::open(config_path.to_str().unwrap(), true, false).unwrap();
+
+        assert_eq!(config.load().app_name, "TestFly");
+        assert_eq!(config.load().token, "test-token");
+        assert_eq!(config.load().api.port, 9090);
+        assert!(config.load().debug);
     }
 }

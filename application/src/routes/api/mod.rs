@@ -5,8 +5,8 @@ use axum::{
     extract::Request,
     http::{Response, StatusCode},
     middleware::Next,
+    response::IntoResponse,
 };
-use constant_time_eq::constant_time_eq;
 use utoipa_axum::router::OpenApiRouter;
 
 mod system;
@@ -16,26 +16,23 @@ pub async fn auth(state: GetState, req: Request, next: Next) -> Result<Response<
         .headers()
         .get("Authorization")
         .and_then(|v| v.to_str().ok())
-        .unwrap_or("")
-        .to_string();
-    let (r#type, token) = match key.split_once(' ') {
-        Some((t, tok)) => (t, tok),
-        None => {
-            return Ok(ApiResponse::error("invalid authorization header")
-                .with_status(StatusCode::UNAUTHORIZED)
-                .with_header("WWW-Authenticate", "Bearer")
-                .into_response());
-        }
+        .unwrap_or("");
+
+    let Some((typ, _token)) = key.split_once(' ') else {
+        return Ok(ApiResponse::error("invalid authorization header")
+            .with_status(StatusCode::UNAUTHORIZED)
+            .with_header("WWW-Authenticate", "Bearer")
+            .into_response());
     };
 
-    if r#type != "Bearer" {
+    if typ != "Bearer" {
         return Ok(ApiResponse::error("invalid authorization header")
             .with_status(StatusCode::UNAUTHORIZED)
             .with_header("WWW-Authenticate", "Bearer")
             .into_response());
     }
 
-    if !constant_time_eq(token.as_bytes(), state.config.load().token.as_bytes()) {
+    if !crate::auth::validate_bearer_header(key, state.config.load().token.as_str()) {
         return Ok(ApiResponse::error("invalid authorization token")
             .with_status(StatusCode::UNAUTHORIZED)
             .with_header("WWW-Authenticate", "Bearer")
@@ -54,5 +51,3 @@ pub fn router(state: &State) -> OpenApiRouter<State> {
         )
         .with_state(state.clone())
 }
-
-use axum::response::IntoResponse;

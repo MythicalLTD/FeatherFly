@@ -3,7 +3,8 @@
 use clap::{Arg, ArgMatches, Args, Command};
 use std::{collections::HashMap, pin::Pin, sync::Arc};
 
-mod service_install;
+mod diagnostics;
+mod install;
 mod version;
 
 pub type ExecutorFunc = dyn Fn(
@@ -120,8 +121,13 @@ pub fn commands(cli: CliCommandGroupBuilder) -> CliCommandGroupBuilder {
         version::VersionCommand,
     )
     .add_command(
-        "service-install",
-        "Installs the FeatherFly service on the system.",
-        service_install::ServiceInstallCommand,
+        "install",
+        "Install FeatherFly binary, config layout, and systemd unit.",
+        install::InstallCommand,
+    )
+    .add_command(
+        "diagnostics",
+        "Collects diagnostic information for support and troubleshooting.",
+        diagnostics::DiagnosticsCommand,
     )
 }
