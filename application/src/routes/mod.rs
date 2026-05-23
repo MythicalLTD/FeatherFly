@@ -22,6 +22,7 @@ pub struct AppState {
     pub version: String,
     pub config: Arc<crate::config::Config>,
     pub plugins: crate::plugins::PluginRegistry,
+    pub probe_guard: crate::probe_guard::ProbeGuard,
 }
 
 #[derive(ToSchema, Serialize, Deserialize)]

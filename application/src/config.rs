@@ -190,6 +190,51 @@ pub struct InnerConfig {
 
     #[serde(default)]
     pub remote: RemoteConfig,
+
+    #[serde(default)]
+    pub security: SecurityConfig,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, DefaultFromSerde)]
+pub struct SecurityConfig {
+    #[serde(default)]
+    pub probe_protection: ProbeProtectionConfig,
+}
+
+fn probe_max_404s_default() -> u32 {
+    25
+}
+
+fn probe_window_secs_default() -> u32 {
+    60
+}
+
+fn probe_block_secs_default() -> u32 {
+    900
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, DefaultFromSerde)]
+pub struct ProbeProtectionConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+
+    #[serde(default = "probe_max_404s_default")]
+    pub max_404s: u32,
+
+    #[serde(default = "probe_window_secs_default")]
+    pub window_secs: u32,
+
+    #[serde(default = "probe_block_secs_default")]
+    pub block_secs: u32,
+
+    #[serde(default = "default_true")]
+    pub log_requests: bool,
+
+    #[serde(default = "default_true")]
+    pub log_unknown_routes: bool,
+
+    #[serde(default = "default_true")]
+    pub log_blocked: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, DefaultFromSerde)]
@@ -483,6 +528,7 @@ impl Config {
             plugins: PluginsConfig::default(),
             logging: LoggingConfig::default(),
             remote: RemoteConfig::default(),
+            security: SecurityConfig::default(),
         };
 
         Arc::new(Self {
@@ -562,6 +608,7 @@ mod tests {
             plugins: PluginsConfig::default(),
             logging: LoggingConfig::default(),
             remote: RemoteConfig::default(),
+            security: SecurityConfig::default(),
         };
 
         let error = super::Config::validate_inner(&inner).unwrap_err();

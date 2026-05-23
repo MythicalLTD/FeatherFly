@@ -1,26 +1,9 @@
-use axum::{
-    body::Body,
-    extract::Request,
-    http::{Response, StatusCode},
-    middleware::Next,
-    response::IntoResponse,
-};
+use axum::{extract::Request, http::StatusCode, response::IntoResponse};
 use std::sync::Arc;
 
 use utoipa_axum::router::OpenApiRouter;
 
 use crate::response::ApiResponse;
-
-async fn handle_request(req: Request, next: Next) -> Result<Response<Body>, StatusCode> {
-    tracing::debug!(
-        path = req.uri().path(),
-        query = req.uri().query().unwrap_or_default(),
-        "http {}",
-        req.method().as_str().to_lowercase(),
-    );
-
-    Ok(next.run(req).await)
-}
 
 pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
     let raw = match std::fs::read(config_path) {
@@ -119,6 +102,7 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
         version: crate::full_version(),
         config: Arc::clone(&config),
         plugins: plugin_registry,
+        probe_guard: crate::probe_guard::ProbeGuard::new(),
     });
 
     let app = OpenApiRouter::new()
@@ -129,7 +113,10 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
                 .with_status(StatusCode::NOT_FOUND)
                 .into_response()
         })
-        .layer(axum::middleware::from_fn(handle_request))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            crate::probe_guard::middleware,
+        ))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             crate::plugins::request_middleware::inject_middleware,

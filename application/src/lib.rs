@@ -6,6 +6,7 @@ pub mod config;
 pub mod daemon_control;
 pub mod logging;
 pub mod plugins;
+pub mod probe_guard;
 pub mod response;
 pub mod routes;
 pub mod update;

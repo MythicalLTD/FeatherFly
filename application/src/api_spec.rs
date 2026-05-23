@@ -67,5 +67,6 @@ fn dummy_state(app_name: &str) -> std::sync::Arc<AppState> {
         version: crate::full_version(),
         config: crate::config::Config::for_openapi_docs(app_name),
         plugins: crate::plugins::PluginRegistry::empty(),
+        probe_guard: crate::probe_guard::ProbeGuard::new(),
     })
 }

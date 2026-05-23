@@ -40,6 +40,16 @@ remote:
   config_edit: true
   restart: true
 
+security:
+  probe_protection:
+    enabled: true
+    max_404s: 25
+    window_secs: 60
+    block_secs: 900
+    log_requests: true
+    log_unknown_routes: true
+    log_blocked: true
+
 updates:
   channel: stable
   check_on_startup: true
