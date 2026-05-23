@@ -173,7 +173,9 @@ impl Config {
             inner.system.pid_file = "./featherfly.pid".into();
         }
 
-        Self::ensure_directories(&inner)?;
+        if !is_subcommand {
+            Self::ensure_directories(&inner)?;
+        }
 
         let dev_mode = inner.debug || is_subcommand;
 

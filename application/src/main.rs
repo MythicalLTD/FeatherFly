@@ -43,8 +43,8 @@ const GIT_BRANCH: &str = env!("CARGO_GIT_BRANCH");
 const TARGET: &str = env!("CARGO_TARGET");
 
 const DEFAULT_CONFIG_PATH: &str = "/etc/featherfly/config.yml";
-pub(crate) const GITHUB_REPO: &str = "mythicalltd/featherfly";
-pub(crate) const GITHUB_REPOSITORY: &str = "https://github.com/mythicalltd/featherfly";
+pub(crate) const GITHUB_REPO: &str = "MythicalLTD/featherfly";
+pub(crate) const GITHUB_REPOSITORY: &str = "https://github.com/MythicalLTD/featherfly";
 pub(crate) const PROJECT_WEBSITE: &str = "https://featherpanel.com";
 pub(crate) const PROJECT_LICENSE: &str = "MIT";
 

@@ -29,12 +29,8 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt, clippy
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: ci
-          cache-on-failure: true
+          cache: true
+          cache-key: ci
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -43,7 +39,7 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Run unit tests
-        run: cargo test --all-targets
+        run: cargo test --workspace --all-targets
 
       - name: Build debug binary
         run: cargo build
@@ -54,4 +50,4 @@ jobs:
       - name: Smoke test diagnostics command
         run: |
           cp config.example.yml /tmp/featherfly-ci-config.yml
-          ./target/debug/featherfly -c /tmp/featherfly-ci-config.yml diagnostics | head -20
+          ./target/debug/featherfly --debug -c /tmp/featherfly-ci-config.yml diagnostics | head -20

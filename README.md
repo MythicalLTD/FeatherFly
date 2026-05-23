@@ -33,8 +33,8 @@ Stable releases are published when you push a tag like `release-0.1.0`.
 
 Nightly builds from `main` are published automatically:
 
-- Nightly downloads: https://github.com/mythicalltd/featherfly/releases/tag/nightly
-- All releases: https://github.com/mythicalltd/featherfly/releases
+- Nightly downloads: https://github.com/MythicalLTD/featherfly/releases/tag/nightly
+- All releases: https://github.com/MythicalLTD/featherfly/releases
 
 Pick the binary for your platform, for example `featherfly-x86_64-linux` or `featherfly-aarch64-linux`.
 
@@ -91,4 +91,4 @@ sudo featherfly update --apply --restart
 ## Links
 
 - https://featherpanel.com
-- https://github.com/mythicalltd/featherfly
+- https://github.com/MythicalLTD/featherfly

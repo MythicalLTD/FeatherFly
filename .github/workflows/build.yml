@@ -49,12 +49,8 @@ jobs:
         with:
           toolchain: stable
           target: ${{ matrix.target }}
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: nightly-${{ matrix.target }}
-          cache-on-failure: true
+          cache: true
+          cache-key: nightly-${{ matrix.target }}
 
       - name: Cache cross
         uses: actions/cache@v4
@@ -98,6 +94,9 @@ jobs:
       contents: write
 
     steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
@@ -114,14 +113,17 @@ jobs:
       - name: Publish nightly GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           NOTES="Automated nightly build from [\`${{ github.sha }}\`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})."
 
-          if gh release view nightly >/dev/null 2>&1; then
-            gh release upload nightly release-assets/* --clobber
-            gh release edit nightly --prerelease --title "Nightly" --notes "$NOTES"
+          if gh release view nightly --repo "$GH_REPO" >/dev/null 2>&1; then
+            gh release upload nightly release-assets/* --clobber --repo "$GH_REPO"
+            gh release edit nightly --repo "$GH_REPO" --prerelease --title "Nightly" --notes "$NOTES"
           else
             gh release create nightly release-assets/* \
+              --repo "$GH_REPO" \
+              --target "${{ github.sha }}" \
               --prerelease \
               --title "Nightly" \
               --notes "$NOTES"

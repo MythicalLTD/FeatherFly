@@ -49,12 +49,8 @@ jobs:
         with:
           toolchain: stable
           target: ${{ matrix.target }}
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: release-${{ matrix.target }}
-          cache-on-failure: true
+          cache: true
+          cache-key: release-${{ matrix.target }}
 
       - name: Cache cross
         uses: actions/cache@v4
