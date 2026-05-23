@@ -1,0 +1,28 @@
+[package]
+name = "featherfly"
+rust-version = { workspace = true }
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["chrono"] }
+tracing-appender = "0.2.3"
+anyhow = { workspace = true }
+axum = { workspace = true }
+serde = { workspace = true }
+utoipa = { workspace = true }
+utoipa-axum = { workspace = true }
+tokio = { workspace = true }
+colored = "3.0.0"
+clap = { version = "4.5.37", features = ["derive", "string"] }
+serde_norway = "0.9.42"
+serde_default = "0.2.0"
+arc-swap = "1.9.1"
+chrono = { version = "0.4.40", features = ["serde"] }
+sysinfo = "0.39.0"
+constant_time_eq = "0.5.0"
+serde_json = "1.0.139"
+
+[build-dependencies]
+serde = { workspace = true }

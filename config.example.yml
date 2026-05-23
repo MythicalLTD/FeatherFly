@@ -1,0 +1,15 @@
+app_name: FeatherFly
+debug: true
+token: "suntgayraudetot20020"
+
+api:
+  host: 0.0.0.0
+  port: 9090
+  disable_openapi_docs: false
+
+system:
+  root_directory: /var/lib/featherfly
+  log_directory: /var/log/featherfly
+  tmp_directory: /tmp/featherfly
+  username: featherfly
+  pid_file: /var/run/featherfly/daemon.pid

@@ -1,6 +1,30 @@
-[package]
-name = "FeatherFly"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+resolver = "3"
+members = ["application"]
+default-members = ["application"]
+package.rust-version = "1.95.0"
 
-[dependencies]
+[workspace.dependencies]
+anyhow = "1.0.98"
+axum = { version = "0.8.1", features = ["http2"] }
+serde = { version = "1.0.138", features = ["derive"] }
+utoipa = { version = "5.4.0", features = ["axum_extras", "chrono"] }
+utoipa-axum = "0.2.0"
+tokio = { version = "1.43.0", features = ["fs", "net", "signal", "process", "rt-multi-thread"] }
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.dev]
+debug = false
+
+[profile.release.package."*"]
+opt-level = "s"
+codegen-units = 1
+strip = true
+
+[profile.release]
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+strip = true
