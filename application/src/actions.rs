@@ -32,6 +32,13 @@ pub fn system_actions() -> Vec<ApiAction> {
             "GET /api/system/update",
         ),
         ApiAction::get("list_plugins", "List plugins", "GET /api/system/plugins"),
+        ApiAction::get("get_config", "Read config", "GET /api/system/config"),
+        ApiAction::get("edit_config", "Edit config", "PUT /api/system/config"),
+        ApiAction::get(
+            "restart_daemon",
+            "Restart daemon",
+            "POST /api/system/restart",
+        ),
         ApiAction::get("diagnostics", "Run diagnostics", "GET /health"),
     ]
 }

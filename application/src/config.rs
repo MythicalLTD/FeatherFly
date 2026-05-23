@@ -2,11 +2,136 @@ use anyhow::Context;
 use arc_swap::ArcSwap;
 use serde::{Deserialize, Serialize};
 use serde_default::DefaultFromSerde;
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
-use tracing_subscriber::fmt::writer::MakeWriterExt;
+use std::{path::PathBuf, sync::Arc};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum LogRotation {
+    #[default]
+    Daily,
+    Hourly,
+    Never,
+}
+
+impl LogRotation {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Daily => "daily",
+            Self::Hourly => "hourly",
+            Self::Never => "never",
+        }
+    }
+
+    #[must_use]
+    pub fn as_tracing_rotation(self) -> tracing_appender::rolling::Rotation {
+        match self {
+            Self::Daily => tracing_appender::rolling::Rotation::DAILY,
+            Self::Hourly => tracing_appender::rolling::Rotation::HOURLY,
+            Self::Never => tracing_appender::rolling::Rotation::NEVER,
+        }
+    }
+}
+
+fn logging_enabled_default() -> bool {
+    true
+}
+
+fn log_to_stdout_default() -> bool {
+    true
+}
+
+fn log_level_default() -> String {
+    "info".into()
+}
+
+fn latest_file_default() -> String {
+    "latest.log".into()
+}
+
+fn archive_prefix_default() -> String {
+    "featherfly".into()
+}
+
+fn archive_suffix_default() -> String {
+    "log".into()
+}
+
+fn archive_max_files_default() -> usize {
+    30
+}
+
+fn timestamp_format_default() -> String {
+    "%Y-%m-%d %H:%M:%S %z".into()
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, DefaultFromSerde)]
+pub struct LogFormatConfig {
+    #[serde(default = "timestamp_format_default")]
+    pub timestamp: String,
+
+    #[serde(default)]
+    pub include_target: bool,
+
+    #[serde(default)]
+    pub include_file_line: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, DefaultFromSerde)]
+pub struct LogArchiveConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+
+    #[serde(default = "archive_prefix_default")]
+    pub prefix: String,
+
+    #[serde(default = "archive_suffix_default")]
+    pub suffix: String,
+
+    #[serde(default)]
+    pub rotation: LogRotation,
+
+    #[serde(default = "archive_max_files_default")]
+    pub max_files: usize,
+
+    #[serde(default)]
+    pub max_age_days: u32,
+
+    #[serde(default = "default_true")]
+    pub prune_on_startup: bool,
+}
+
+impl LogArchiveConfig {
+    pub fn looks_like_archive(&self, filename: &str) -> bool {
+        filename.starts_with(&format!("{}.", self.prefix))
+            && filename.ends_with(&format!(".{}", self.suffix))
+    }
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, DefaultFromSerde)]
+pub struct LoggingConfig {
+    #[serde(default = "logging_enabled_default")]
+    pub enabled: bool,
+
+    #[serde(default = "log_to_stdout_default")]
+    pub log_to_stdout: bool,
+
+    #[serde(default = "log_level_default")]
+    pub level: String,
+
+    #[serde(default = "latest_file_default")]
+    pub latest_file: String,
+
+    #[serde(default)]
+    pub archive: LogArchiveConfig,
+
+    #[serde(default)]
+    pub format: LogFormatConfig,
+}
 
 fn app_name() -> String {
     "FeatherFly".to_string()
@@ -37,7 +162,7 @@ fn system_plugins_directory() -> String {
     "/var/lib/featherfly/plugins".to_string()
 }
 
-#[derive(Debug, Deserialize, Serialize, DefaultFromSerde)]
+#[derive(Debug, Clone, Deserialize, Serialize, DefaultFromSerde)]
 pub struct InnerConfig {
     #[serde(default = "app_name")]
     pub app_name: String,
@@ -59,9 +184,29 @@ pub struct InnerConfig {
 
     #[serde(default)]
     pub plugins: PluginsConfig,
+
+    #[serde(default)]
+    pub logging: LoggingConfig,
+
+    #[serde(default)]
+    pub remote: RemoteConfig,
 }
 
-#[derive(Debug, Deserialize, Serialize, DefaultFromSerde)]
+#[derive(Debug, Clone, Deserialize, Serialize, DefaultFromSerde)]
+pub struct RemoteConfig {
+    #[serde(default = "default_true")]
+    pub config_edit: bool,
+
+    #[serde(default = "default_true")]
+    pub restart: bool,
+}
+
+pub struct ConfigApplyResult {
+    pub requires_restart: bool,
+    pub restart_reasons: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, DefaultFromSerde)]
 pub struct ApiConfig {
     #[serde(default = "api_host")]
     pub host: String,
@@ -73,7 +218,7 @@ pub struct ApiConfig {
     pub disable_openapi_docs: bool,
 }
 
-#[derive(Debug, Deserialize, Serialize, DefaultFromSerde)]
+#[derive(Debug, Clone, Deserialize, Serialize, DefaultFromSerde)]
 pub struct SystemConfig {
     #[serde(default = "system_root_directory")]
     pub root_directory: String,
@@ -94,7 +239,7 @@ pub struct SystemConfig {
     pub plugins_directory: String,
 }
 
-#[derive(Debug, Deserialize, Serialize, DefaultFromSerde)]
+#[derive(Debug, Clone, Deserialize, Serialize, DefaultFromSerde)]
 pub struct PluginsConfig {
     #[serde(default = "plugins_enabled_default")]
     pub enabled: bool,
@@ -104,7 +249,7 @@ fn plugins_enabled_default() -> bool {
     true
 }
 
-#[derive(Debug, Deserialize, Serialize, DefaultFromSerde)]
+#[derive(Debug, Clone, Deserialize, Serialize, DefaultFromSerde)]
 pub struct UpdatesConfig {
     #[serde(default = "updates_channel_default")]
     pub channel: crate::update::UpdateChannel,
@@ -129,13 +274,7 @@ pub struct Config {
     pub path: String,
 }
 
-pub struct ConfigGuard(
-    #[allow(dead_code)]
-    Option<(
-        tracing_appender::non_blocking::WorkerGuard,
-        tracing_appender::non_blocking::WorkerGuard,
-    )>,
-);
+pub struct ConfigGuard(#[allow(dead_code)] crate::logging::LogGuards);
 
 impl std::ops::Deref for Config {
     type Target = ArcSwap<InnerConfig>;
@@ -187,12 +326,7 @@ impl Config {
         serde_norway::from_slice(bytes).context("failed to parse config yaml")
     }
 
-    pub fn open_from_inner(
-        mut inner: InnerConfig,
-        path: &str,
-        debug: bool,
-        is_subcommand: bool,
-    ) -> Result<(Arc<Self>, ConfigGuard), anyhow::Error> {
+    pub fn apply_debug_overrides(mut inner: InnerConfig, debug: bool) -> InnerConfig {
         if debug {
             inner.debug = true;
             inner.system.root_directory = "./data".into();
@@ -201,79 +335,10 @@ impl Config {
             inner.system.pid_file = "./featherfly.pid".into();
             inner.system.plugins_directory = "./data/plugins".into();
         }
-
-        if !is_subcommand {
-            Self::ensure_directories(&inner)?;
-        }
-
-        let dev_mode = inner.debug || is_subcommand;
-
-        let log_guards = if dev_mode {
-            let _ = tracing_subscriber::fmt()
-                .with_target(false)
-                .with_file(false)
-                .with_line_number(false)
-                .with_max_level(if inner.debug && !is_subcommand {
-                    tracing::Level::DEBUG
-                } else {
-                    tracing::Level::INFO
-                })
-                .try_init();
-
-            None
-        } else {
-            let (stdout_writer, stdout_guard) = tracing_appender::non_blocking(std::io::stdout());
-
-            let latest_log_path = Path::new(&inner.system.log_directory).join("featherfly.log");
-            let latest_file = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&latest_log_path)
-                .context("failed to open latest log file")?;
-
-            let rolling_appender = tracing_appender::rolling::Builder::new()
-                .filename_prefix("featherfly")
-                .filename_suffix("log")
-                .max_log_files(30)
-                .rotation(tracing_appender::rolling::Rotation::DAILY)
-                .build(&inner.system.log_directory)
-                .context("failed to create rolling log file appender")?;
-
-            let (file_appender, guard) =
-                tracing_appender::non_blocking::NonBlockingBuilder::default()
-                    .buffered_lines_limit(50)
-                    .finish(latest_file.and(rolling_appender));
-
-            let _ = tracing_subscriber::fmt()
-                .with_timer(tracing_subscriber::fmt::time::ChronoLocal::new(
-                    "%Y-%m-%d %H:%M:%S %z".to_string(),
-                ))
-                .with_writer(stdout_writer.and(file_appender))
-                .with_target(false)
-                .with_level(true)
-                .with_file(true)
-                .with_line_number(true)
-                .with_max_level(tracing::Level::INFO)
-                .try_init();
-
-            Some((guard, stdout_guard))
-        };
-
-        Self::validate_inner(&inner)?;
-
-        if !dev_mode {
-            Self::write_pid_file(&inner)?;
-        }
-
-        let config = Arc::new(Self {
-            inner: ArcSwap::new(Arc::new(inner)),
-            path: path.to_string(),
-        });
-
-        Ok((config, ConfigGuard(log_guards)))
+        inner
     }
 
-    fn ensure_directories(inner: &InnerConfig) -> Result<(), anyhow::Error> {
+    pub fn ensure_directories(inner: &InnerConfig) -> Result<(), anyhow::Error> {
         for dir in [
             &inner.system.root_directory,
             &inner.system.log_directory,
@@ -292,6 +357,44 @@ impl Config {
         Ok(())
     }
 
+    pub fn init_tracing(
+        inner: &InnerConfig,
+        _debug: bool,
+        is_subcommand: bool,
+    ) -> Result<ConfigGuard, anyhow::Error> {
+        crate::logging::init(inner, is_subcommand).map(ConfigGuard)
+    }
+
+    pub fn open_from_inner(
+        mut inner: InnerConfig,
+        path: &str,
+        debug: bool,
+        is_subcommand: bool,
+    ) -> Result<(Arc<Self>, ConfigGuard), anyhow::Error> {
+        inner = Self::apply_debug_overrides(inner, debug);
+
+        if !is_subcommand {
+            Self::ensure_directories(&inner)?;
+        }
+
+        let log_guards = Self::init_tracing(&inner, debug, is_subcommand)?;
+
+        Self::validate_inner(&inner)?;
+
+        let dev_mode = inner.debug || is_subcommand;
+
+        if !dev_mode {
+            Self::write_pid_file(&inner)?;
+        }
+
+        let config = Arc::new(Self {
+            inner: ArcSwap::new(Arc::new(inner)),
+            path: path.to_string(),
+        });
+
+        Ok((config, log_guards))
+    }
+
     fn validate_inner(inner: &InnerConfig) -> Result<(), anyhow::Error> {
         if inner.api.port == 0 {
             anyhow::bail!("api.port must be greater than 0");
@@ -299,6 +402,14 @@ impl Config {
 
         if inner.system.root_directory.is_empty() {
             anyhow::bail!("system.root_directory must not be empty");
+        }
+
+        if inner.logging.latest_file.is_empty() {
+            anyhow::bail!("logging.latest_file must not be empty");
+        }
+
+        if inner.logging.archive.prefix.is_empty() {
+            anyhow::bail!("logging.archive.prefix must not be empty");
         }
 
         Ok(())
@@ -317,6 +428,37 @@ impl Config {
                 "failed to remove pid file"
             );
         }
+    }
+
+    pub fn export_yaml_redacted(&self) -> Result<String, anyhow::Error> {
+        let guard = self.load();
+        let mut inner = guard.as_ref().clone();
+        if !inner.token.is_empty() {
+            inner.token = "***".into();
+        }
+        serde_norway::to_string(&inner).context("failed to serialize config")
+    }
+
+    pub fn apply_yaml(&self, yaml: &str) -> Result<ConfigApplyResult, anyhow::Error> {
+        let mut new_inner: InnerConfig =
+            serde_norway::from_str(yaml).context("failed to parse config yaml")?;
+
+        let old = self.load();
+        if new_inner.token == "***" {
+            new_inner.token = old.token.clone();
+        }
+
+        Self::validate_inner(&new_inner)?;
+        let restart_reasons = restart_reasons(&old, &new_inner);
+
+        std::fs::write(&self.path, yaml)
+            .with_context(|| format!("failed to write config file {}", self.path))?;
+        self.inner.store(Arc::new(new_inner));
+
+        Ok(ConfigApplyResult {
+            requires_restart: !restart_reasons.is_empty(),
+            restart_reasons,
+        })
     }
 
     pub fn for_openapi_docs(app_name: impl Into<String>) -> Arc<Self> {
@@ -339,6 +481,8 @@ impl Config {
             },
             updates: UpdatesConfig::default(),
             plugins: PluginsConfig::default(),
+            logging: LoggingConfig::default(),
+            remote: RemoteConfig::default(),
         };
 
         Arc::new(Self {
@@ -346,6 +490,31 @@ impl Config {
             path: "docs".into(),
         })
     }
+}
+
+fn restart_reasons(old: &InnerConfig, new: &InnerConfig) -> Vec<String> {
+    let mut reasons = Vec::new();
+
+    if old.api.host != new.api.host || old.api.port != new.api.port {
+        reasons.push("api listen address changed".into());
+    }
+    if old.debug != new.debug {
+        reasons.push("debug flag changed".into());
+    }
+    if old.logging != new.logging {
+        reasons.push("logging settings changed".into());
+    }
+    if old.system.plugins_directory != new.system.plugins_directory {
+        reasons.push("plugins directory changed".into());
+    }
+    if old.plugins.enabled != new.plugins.enabled {
+        reasons.push("plugins.enabled changed".into());
+    }
+    if old.system.log_directory != new.system.log_directory {
+        reasons.push("log directory changed".into());
+    }
+
+    reasons
 }
 
 #[cfg(test)]
@@ -391,6 +560,8 @@ mod tests {
             },
             updates: UpdatesConfig::default(),
             plugins: PluginsConfig::default(),
+            logging: LoggingConfig::default(),
+            remote: RemoteConfig::default(),
         };
 
         let error = super::Config::validate_inner(&inner).unwrap_err();

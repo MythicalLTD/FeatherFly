@@ -76,18 +76,76 @@ pub const GROUPS: &[ApiGroup] = &[
     ApiGroup {
         id: "api-system-plugins",
         title: "Plugins",
-        summary: "Inspect loaded plugins and available hook targets.",
+        summary: "Inspect loaded plugins and reload after installing new .so files.",
         slug: "system-plugins",
         router_source: "application/src/routes/api/system/plugins.rs",
+        routes: &[
+            RouteDoc {
+                method: "GET",
+                path: "/api/system/plugins",
+                operation_id: "get_system_plugins",
+                title: "List plugins",
+                description: "Lists every loaded `.so` plugin with name, version, hook count, and path. Returns lifecycle events, JSON targets, request phases, plugin route count, and loaded plugin summaries.",
+                auth: "Bearer token",
+                response: r#"{"enabled":true,"directory":"/var/lib/featherfly/plugins","hooks":3,"events":["config.loaded",...],"json_targets":["json.response","json.actions"],"request_phases":["request.intercept","middleware.inject"],"plugin_routes":1,"plugins":[...],"actions":[...]}"#,
+                source: "application/src/routes/api/system/plugins.rs",
+            },
+            RouteDoc {
+                method: "POST",
+                path: "/api/system/plugins/reload",
+                operation_id: "post_system_plugins_reload",
+                title: "Reload plugins",
+                description: "Schedules a daemon restart so newly installed or updated `.so` files are loaded. Plugins are only read at startup — this endpoint does not hot-reload in-process. Requires `remote.restart: true`. Returns 202 Accepted.",
+                auth: "Bearer token",
+                response: r#"{"scheduled":true,"delay_ms":750,"note":"plugins are loaded at startup; a daemon restart is required to pick up changes"}"#,
+                source: "application/src/routes/api/system/plugins.rs",
+            },
+        ],
+    },
+    ApiGroup {
+        id: "api-system-config",
+        title: "Remote config",
+        summary: "Read and edit config.yml from FeatherPanel without SSH.",
+        slug: "system-config",
+        router_source: "application/src/routes/api/system/config.rs",
+        routes: &[
+            RouteDoc {
+                method: "GET",
+                path: "/api/system/config",
+                operation_id: "get_system_config",
+                title: "Read configuration",
+                description: "Returns the active config as YAML. The bearer token is redacted as `***`. Requires `remote.config_edit: true` (also gates writes).",
+                auth: "Bearer token",
+                response: r#"{"path":"/etc/featherfly/config.yml","yaml":"app_name: FeatherFly\n...","editable":true}"#,
+                source: "application/src/routes/api/system/config.rs",
+            },
+            RouteDoc {
+                method: "PUT",
+                path: "/api/system/config",
+                operation_id: "put_system_config",
+                title: "Apply configuration",
+                description: "Validates and writes a full config YAML snapshot. Set `restart_if_required: true` to auto-restart when listen address, logging, plugins directory, or similar fields change. Token value `***` preserves the existing secret.",
+                auth: "Bearer token",
+                response: r#"{"applied":true,"requires_restart":false,"restart_reasons":[],"restart_scheduled":false}"#,
+                source: "application/src/routes/api/system/config.rs",
+            },
+        ],
+    },
+    ApiGroup {
+        id: "api-system-restart",
+        title: "Remote restart",
+        summary: "Gracefully restart the daemon from the panel.",
+        slug: "system-restart",
+        router_source: "application/src/routes/api/system/restart.rs",
         routes: &[RouteDoc {
-            method: "GET",
-            path: "/api/system/plugins",
-            operation_id: "get_system_plugins",
-            title: "List plugins",
-            description: "Lists every loaded `.so` plugin with name, version, hook count, and path. Returns lifecycle events, JSON targets, request phases, plugin route count, and loaded plugin summaries.",
+            method: "POST",
+            path: "/api/system/restart",
+            operation_id: "post_system_restart",
+            title: "Restart daemon",
+            description: "Spawns a replacement process with the same argv and exits. Optional `delay_ms` (default 0) and `reason` for audit logs. Requires `remote.restart: true`. Returns 202 Accepted.",
             auth: "Bearer token",
-            response: r#"{"enabled":true,"directory":"/var/lib/featherfly/plugins","hooks":3,"events":["config.loaded",...],"json_targets":["json.response","json.actions"],"request_phases":["request.intercept","middleware.inject"],"plugin_routes":1,"plugins":[...]}"#,
-            source: "application/src/routes/api/system/plugins.rs",
+            response: r#"{"scheduled":true,"delay_ms":0}"#,
+            source: "application/src/routes/api/system/restart.rs",
         }],
     },
     ApiGroup {
@@ -247,6 +305,17 @@ fn curl_example(route: &RouteDoc) -> String {
         lines.push(
             "-d '{\"url\":\"https://example.com/featherfly\",\"sha256\":\"...\",\"restart_command\":\"systemctl\",\"restart_command_args\":[\"restart\",\"featherfly\"]}'".to_string(),
         );
+    } else if route.method == "PUT" && route.path.contains("/config") {
+        lines.push("-H 'Content-Type: application/json' \\".to_string());
+        lines.push(
+            "-d '{\"yaml\":\"app_name: FeatherFly\\n...\",\"restart_if_required\":true}'"
+                .to_string(),
+        );
+    } else if route.method == "POST" && route.path.contains("/restart") {
+        lines.push("-H 'Content-Type: application/json' \\".to_string());
+        lines.push("-d '{\"delay_ms\":500,\"reason\":\"panel maintenance\"}'".to_string());
+    } else if route.method == "POST" && route.path.contains("/reload") {
+        lines.push("-H 'Content-Type: application/json'".to_string());
     }
     lines.join("\n")
 }

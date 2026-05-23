@@ -108,6 +108,40 @@ impl PluginRegistry {
             })
     }
 
+    pub fn config_hook_count(&self) -> usize {
+        self.event_bus
+            .lock()
+            .map(|bus| bus.config_hook_count())
+            .unwrap_or(0)
+    }
+
+    pub fn log_startup_summary(&self) {
+        let summaries = self.summaries();
+        if summaries.is_empty() {
+            tracing::debug!("no plugins loaded");
+            return;
+        }
+
+        for plugin in &summaries {
+            tracing::debug!(
+                name = %plugin.name,
+                version = %plugin.version,
+                hooks = plugin.hooks,
+                path = %plugin.path,
+                "plugin ready"
+            );
+        }
+
+        for route in self.routes() {
+            tracing::debug!(
+                plugin = %route.plugin,
+                method = %events::code_to_method(route.method),
+                path = %route.path,
+                "plugin route registered"
+            );
+        }
+    }
+
     pub fn shutdown_all(&self) {
         self.emit(PluginEvent::DaemonStopping, b"");
         for plugin in &self.plugins {
@@ -150,7 +184,7 @@ pub fn load_directory(directory: &Path, enabled: bool) -> Result<PluginRegistry,
     let event_bus = Arc::new(Mutex::new(EventBus::new()));
 
     if !enabled {
-        tracing::info!("plugin loading disabled in config");
+        tracing::debug!("plugin loading disabled in configuration");
         return Ok(PluginRegistry {
             plugins: Vec::new(),
             event_bus,
@@ -158,15 +192,17 @@ pub fn load_directory(directory: &Path, enabled: bool) -> Result<PluginRegistry,
     }
 
     if !directory.exists() {
-        tracing::info!(
+        tracing::debug!(
             path = %directory.display(),
-            "plugins directory does not exist yet; skipping plugin load"
+            "plugins directory does not exist yet"
         );
         return Ok(PluginRegistry {
             plugins: Vec::new(),
             event_bus,
         });
     }
+
+    tracing::debug!(path = %directory.display(), "scanning plugins directory");
 
     let mut paths: Vec<PathBuf> = std::fs::read_dir(directory)
         .with_context(|| format!("failed to read plugins directory {}", directory.display()))?
@@ -176,15 +212,33 @@ pub fn load_directory(directory: &Path, enabled: bool) -> Result<PluginRegistry,
         .collect();
     paths.sort();
 
+    if paths.is_empty() {
+        tracing::debug!(
+            path = %directory.display(),
+            "no .so plugin libraries found"
+        );
+        return Ok(PluginRegistry {
+            plugins: Vec::new(),
+            event_bus,
+        });
+    }
+
+    tracing::debug!(
+        path = %directory.display(),
+        count = paths.len(),
+        "found plugin libraries"
+    );
+
     let mut plugins = Vec::new();
-    for path in paths {
-        match load_plugin(&path, Arc::clone(&event_bus)) {
+    for path in &paths {
+        tracing::debug!(path = %path.display(), "loading plugin");
+        match load_plugin(path, Arc::clone(&event_bus)) {
             Ok(plugin) => {
-                tracing::info!(
+                tracing::debug!(
                     name = %plugin.summary.name,
                     version = %plugin.summary.version,
                     hooks = plugin.summary.hooks,
-                    path = %plugin.summary.path,
+                    api_version = plugin.summary.api_version,
                     "loaded plugin"
                 );
                 let payload = plugin.summary.name.as_bytes();
@@ -208,7 +262,7 @@ pub fn load_directory(directory: &Path, enabled: bool) -> Result<PluginRegistry,
         .lock()
         .expect("plugin event bus poisoned")
         .hook_count();
-    tracing::info!(
+    tracing::debug!(
         count = plugins.len(),
         hooks = hook_count,
         routes = event_bus.lock().map(|b| b.routes().len()).unwrap_or(0),
@@ -420,7 +474,7 @@ extern "C" fn log_info_trampoline(message_ptr: *const u8, message_len: usize) {
     }
 
     let message = unsafe { std::slice::from_raw_parts(message_ptr, message_len) };
-    tracing::info!(target: "plugin", "{}", String::from_utf8_lossy(message));
+    tracing::debug!(target: "plugin", "{}", String::from_utf8_lossy(message));
 }
 
 fn read_bytes(ptr: *const u8, len: usize) -> Result<String, anyhow::Error> {

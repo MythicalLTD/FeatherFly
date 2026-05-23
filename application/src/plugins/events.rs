@@ -293,11 +293,19 @@ impl EventBus {
 
     #[must_use]
     pub fn hook_count(&self) -> usize {
-        self.hooks.values().map(Vec::len).sum::<usize>()
-            + self.json_hooks.len()
+        self.lifecycle_hook_count()
             + self.config_hooks.len()
             + self.request_hooks.len()
+            + self.json_hooks.len()
             + self.routes.len()
+    }
+
+    pub fn config_hook_count(&self) -> usize {
+        self.config_hooks.len()
+    }
+
+    fn lifecycle_hook_count(&self) -> usize {
+        self.hooks.values().map(Vec::len).sum()
     }
 }
 

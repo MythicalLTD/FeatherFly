@@ -140,7 +140,17 @@ pub fn write_index(output: &Path) -> std::io::Result<()> {
         entry(
             "System plugins",
             "api/system-plugins.html",
-            "loaded plugins hooks json targets request phases routes",
+            "loaded plugins hooks json targets request phases routes reload restart",
+        ),
+        entry(
+            "Remote config",
+            "api/system-config.html",
+            "read edit config yaml remote panel restart_if_required",
+        ),
+        entry(
+            "Remote restart",
+            "api/system-restart.html",
+            "daemon restart schedule delay remote panel",
         ),
         entry(
             "System update",

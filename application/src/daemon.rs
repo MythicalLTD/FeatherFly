@@ -31,7 +31,7 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
         }
     };
 
-    let mut preview = match crate::config::Config::parse_preview(&raw) {
+    let preview = match crate::config::Config::parse_preview(&raw) {
         Ok(inner) => inner,
         Err(err) => {
             eprintln!("failed to parse config file {config_path}: {err:#?}");
@@ -39,20 +39,52 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
         }
     };
 
-    if debug {
-        preview.system.plugins_directory = "./data/plugins".into();
+    let preview = crate::config::Config::apply_debug_overrides(preview, debug);
+
+    if let Err(err) = crate::config::Config::ensure_directories(&preview) {
+        eprintln!("failed to prepare data directories: {err:#?}");
+        return Err(1);
     }
 
-    let plugin_registry = crate::plugins::load_directory(
-        std::path::Path::new(&preview.system.plugins_directory),
-        preview.plugins.enabled,
-    )
-    .unwrap_or_else(|err| {
-        tracing::error!("failed to load plugins: {err:#}");
-        crate::plugins::PluginRegistry::empty()
-    });
+    let _early_log_guard = match crate::config::Config::init_tracing(&preview, debug, false) {
+        Ok(guard) => guard,
+        Err(err) => {
+            eprintln!("failed to initialize logging: {err:#?}");
+            return Err(1);
+        }
+    };
 
+    tracing::info!("starting FeatherFly daemon");
+
+    let plugins_dir = std::path::Path::new(&preview.system.plugins_directory);
+    tracing::debug!(
+        path = %plugins_dir.display(),
+        enabled = preview.plugins.enabled,
+        api_version = featherfly_plugin_sdk::FEATHERFLY_PLUGIN_API_VERSION,
+        "loading plugins"
+    );
+
+    let plugin_registry = crate::plugins::load_directory(plugins_dir, preview.plugins.enabled)
+        .unwrap_or_else(|err| {
+            tracing::error!("failed to load plugins: {err:#}");
+            crate::plugins::PluginRegistry::empty()
+        });
+
+    if plugin_registry.config_hook_count() > 0 {
+        tracing::debug!(
+            hooks = plugin_registry.config_hook_count(),
+            "running config.mutate pipeline"
+        );
+    }
+
+    let raw_before = raw.clone();
     let raw = plugin_registry.mutate_config(&raw);
+
+    if raw != raw_before {
+        tracing::debug!("configuration updated by plugin config.mutate hooks");
+    }
+
+    tracing::debug!(path = config_path, "applying configuration");
 
     let inner = match crate::config::Config::parse_preview(&raw) {
         Ok(inner) => inner,
@@ -70,9 +102,11 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
                 return Err(1);
             }
         };
-    tracing::info!("config loaded from {}", config_path);
+    tracing::debug!(path = config_path, "configuration loaded");
 
+    plugin_registry.log_startup_summary();
     plugin_registry.emit(featherfly_plugin_sdk::PluginEvent::ConfigLoaded, &raw);
+    tracing::debug!("emitting daemon.starting lifecycle event");
     plugin_registry.emit(featherfly_plugin_sdk::PluginEvent::DaemonStarting, b"");
 
     let state = Arc::new(crate::routes::AppState {
@@ -110,6 +144,12 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
         ))
         .with_state(state.clone());
 
+    tracing::debug!(
+        plugin_routes = state.plugins.routes().len(),
+        config_hooks = state.plugins.config_hook_count(),
+        "HTTP middleware stack ready"
+    );
+
     let (mut router, openapi) = app.split_for_parts();
     let openapi = crate::api_spec::finalize_openapi(openapi, &config.load().app_name);
 
@@ -126,14 +166,21 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
     if let Ok(host) = config.load().api.host.parse::<std::net::IpAddr>() {
         let address = std::net::SocketAddr::from((host, config.load().api.port));
 
-        tracing::info!("http listening on {}", address);
+        tracing::info!(
+            address = %address,
+            plugins = state.plugins.summaries().len(),
+            hooks = state.plugins.hook_count(),
+            plugin_routes = state.plugins.routes().len(),
+            openapi = !config.load().api.disable_openapi_docs,
+            "FeatherFly ready"
+        );
 
         if !config.load().api.disable_openapi_docs {
-            tracing::info!(
-                "openapi schema available at http://{}/openapi.json",
-                address
+            tracing::debug!(
+                schema = %format!("http://{address}/openapi.json"),
+                docs = crate::DOCS_WEBSITE,
+                "documentation endpoints"
             );
-            tracing::info!("human docs at {}", crate::DOCS_WEBSITE);
         }
 
         state.plugins.emit(

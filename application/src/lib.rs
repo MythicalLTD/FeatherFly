@@ -3,6 +3,8 @@ pub mod api_spec;
 pub mod auth;
 pub mod commands;
 pub mod config;
+pub mod daemon_control;
+pub mod logging;
 pub mod plugins;
 pub mod response;
 pub mod routes;

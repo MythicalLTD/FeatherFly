@@ -15,8 +15,30 @@ system:
   pid_file: /var/run/featherfly/daemon.pid
   plugins_directory: /var/lib/featherfly/plugins
 
+logging:
+  enabled: true
+  log_to_stdout: true
+  level: info
+  latest_file: latest.log
+  archive:
+    enabled: true
+    prefix: featherfly
+    suffix: log
+    rotation: daily
+    max_files: 30
+    max_age_days: 0
+    prune_on_startup: true
+  format:
+    timestamp: "%Y-%m-%d %H:%M:%S %z"
+    include_target: false
+    include_file_line: false
+
 plugins:
   enabled: true
+
+remote:
+  config_edit: true
+  restart: true
 
 updates:
   channel: stable

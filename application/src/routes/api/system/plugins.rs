@@ -52,8 +52,60 @@ mod get {
     }
 }
 
+mod post {
+    use crate::{
+        response::{ApiResponse, ApiResponseResult},
+        routes::{ApiError, GetState},
+    };
+    use axum::http::StatusCode;
+    use serde::Serialize;
+    use utoipa::ToSchema;
+
+    #[derive(ToSchema, Serialize)]
+    struct Response {
+        scheduled: bool,
+        delay_ms: u64,
+        note: &'static str,
+    }
+
+    #[utoipa::path(
+        post,
+        path = "/reload",
+        operation_id = "post_system_plugins_reload",
+        security(("bearer_auth" = [])),
+        responses(
+            (status = ACCEPTED, body = inline(Response)),
+            (status = FORBIDDEN, body = inline(ApiError)),
+        ),
+    )]
+    pub async fn route(state: GetState) -> ApiResponseResult {
+        if !state.config.load().remote.restart {
+            return ApiResponse::error("remote restart is disabled (required for plugin reload)")
+                .with_status(StatusCode::FORBIDDEN)
+                .ok();
+        }
+
+        let delay_ms = 750;
+        tracing::info!(
+            plugins = state.plugins.summaries().len(),
+            "plugin reload requested — scheduling daemon restart"
+        );
+
+        crate::daemon_control::schedule_restart(delay_ms);
+
+        ApiResponse::new_serialized(Response {
+            scheduled: true,
+            delay_ms,
+            note: "plugins are loaded at startup; a daemon restart is required to pick up changes",
+        })
+        .with_status(StatusCode::ACCEPTED)
+        .ok()
+    }
+}
+
 pub fn router(state: &State) -> OpenApiRouter<State> {
     OpenApiRouter::new()
         .routes(routes!(get::route))
+        .routes(routes!(post::route))
         .with_state(state.clone())
 }

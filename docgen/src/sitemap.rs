@@ -56,6 +56,8 @@ mod search {
             "api/system.html",
             "api/system-overview.html",
             "api/system-plugins.html",
+            "api/system-config.html",
+            "api/system-restart.html",
             "api/system-update.html",
             "api/system-upgrade.html",
             "tests/index.html",

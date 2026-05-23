@@ -81,8 +81,24 @@ impl crate::commands::CliCommand<DiagnosticsArgs> for DiagnosticsCommand {
                         .unwrap_or_else(|_| "unknown".into()),
                 )?;
 
-                let log_path =
-                    std::path::Path::new(&inner.system.log_directory).join("featherfly.log");
+                let log_path = inner
+                    .logging
+                    .latest_path(std::path::Path::new(&inner.system.log_directory));
+                write_section(&mut report, "logging")?;
+                write_line(&mut report, "enabled", &inner.logging.enabled.to_string())?;
+                write_line(&mut report, "level", &inner.logging.level)?;
+                write_line(&mut report, "latest file", &inner.logging.latest_file)?;
+                write_line(
+                    &mut report,
+                    "archive rotation",
+                    inner.logging.archive.rotation.as_str(),
+                )?;
+                write_line(
+                    &mut report,
+                    "archive max files",
+                    &inner.logging.archive.max_files.to_string(),
+                )?;
+
                 write_section(&mut report, "recent logs")?;
                 match tokio::fs::read_to_string(&log_path).await {
                     Ok(contents) => {

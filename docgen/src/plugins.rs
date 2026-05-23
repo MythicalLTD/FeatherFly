@@ -443,6 +443,10 @@ fn overview_page() -> String {
 {overview}
 <h2>Startup sequence</h2>
 {lifecycle}
+<h2>Logging</h2>
+<p>Plugin discovery, per-library load, route registration, and <code>HostApi::log_info</code> output use the <code>plugin</code> tracing target at <strong>DEBUG</strong>. At INFO you get one consolidated <code>FeatherFly ready</code> line with plugin/hook/route counts. Set <code>logging.level: debug</code> (or run with <code>--debug</code>) to see loader detail in <code>latest.log</code>.</p>
+<h2>Remote management</h2>
+<p>FeatherPanel can read/edit <code>config.yml</code>, restart the daemon, and trigger plugin reloads over the HTTP API. See <a href=\"../api/system-config.html\">remote config</a>, <a href=\"../api/system-restart.html\">remote restart</a>, and <a href=\"../api/system-plugins.html\">plugin reload</a>. Toggle capabilities with <code>remote.config_edit</code> and <code>remote.restart</code> in config.</p>
 <h2>Hook systems</h2>
 <div class=\"meta-grid\">
   <div class=\"meta-item\"><div class=\"meta-label\">Lifecycle</div><div class=\"meta-value\"><code>hook!</code> — <a href=\"events/index.html\">events</a></div></div>
