@@ -35,6 +35,9 @@ jobs:
           cache-key: docs
 
       - name: Generate documentation
+        env:
+          DOCS_BUILD_ID: ${{ github.sha }}
+          DOCS_BASE_PATH: /featherfly/
         run: cargo run --bin generate-docs
 
       - name: Upload Pages artifact

@@ -4,7 +4,8 @@ use std::path::Path;
 pub enum Section {
     Root,
     Plugins,
-    PluginsNested,
+    PluginEvents,
+    PluginJsonHooks,
     Api,
 }
 
@@ -29,9 +30,16 @@ impl PageContext {
         }
     }
 
-    pub const fn plugins_nested(active: &'static str) -> Self {
+    pub const fn plugin_events(active: &'static str) -> Self {
         Self {
-            section: Section::PluginsNested,
+            section: Section::PluginEvents,
+            active,
+        }
+    }
+
+    pub const fn plugin_json_hooks(active: &'static str) -> Self {
+        Self {
+            section: Section::PluginJsonHooks,
             active,
         }
     }
@@ -44,15 +52,71 @@ impl PageContext {
     }
 }
 
-struct NavLink {
+struct NavItem {
     id: &'static str,
     label: &'static str,
-    href: &'static str,
+    path: &'static str,
 }
 
 struct NavGroup {
-    label: &'static str,
-    links: &'static [NavLink],
+    overview: Option<NavItem>,
+    children: &'static [NavItem],
+}
+
+fn section_dir(section: Section) -> &'static str {
+    match section {
+        Section::Root => "",
+        Section::Plugins => "plugins/",
+        Section::PluginEvents => "plugins/events/",
+        Section::PluginJsonHooks => "plugins/json-hooks/",
+        Section::Api => "api/",
+    }
+}
+
+fn relative_href(from_dir: &str, to_path: &str) -> String {
+    fn split_path(path: &str) -> Vec<&str> {
+        path.trim_end_matches('/')
+            .split('/')
+            .filter(|s| !s.is_empty())
+            .collect()
+    }
+
+    let from_parts = split_path(from_dir);
+    let to_parts = split_path(to_path);
+
+    let mut common = 0usize;
+    while common < from_parts.len()
+        && common < to_parts.len()
+        && from_parts[common] == to_parts[common]
+    {
+        common += 1;
+    }
+
+    let ups = from_parts.len().saturating_sub(common);
+    let mut result = std::iter::repeat_n("..", ups).collect::<Vec<_>>().join("/");
+    let rest = &to_parts[common..];
+
+    if rest.is_empty() {
+        return if result.is_empty() {
+            ".".into()
+        } else {
+            result
+        };
+    }
+
+    if !result.is_empty() {
+        result.push('/');
+    }
+    result.push_str(&rest.join("/"));
+    result
+}
+
+fn build_id() -> String {
+    std::env::var("DOCS_BUILD_ID").unwrap_or_else(|_| "dev".into())
+}
+
+fn docs_base() -> String {
+    std::env::var("DOCS_BASE_PATH").unwrap_or_else(|_| "/featherfly/".into())
 }
 
 pub fn write(path: &Path, title: &str, ctx: PageContext, body: &str) -> std::io::Result<()> {
@@ -60,16 +124,25 @@ pub fn write(path: &Path, title: &str, ctx: PageContext, body: &str) -> std::io:
         std::fs::create_dir_all(parent)?;
     }
 
+    let from_dir = section_dir(ctx.section);
+    let home = relative_href(from_dir, "index.html");
+    let search_index = relative_href(from_dir, "search-index.json");
+    let build = build_id();
+    let base = docs_base();
+
     std::fs::write(
         path,
         format!(
             r##"<!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-docs-base="{base}" data-build="{build}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>{title} · FeatherFly</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.tailwindcss.com?v={build}"></script>
   <script>tailwind.config = {{ darkMode: 'class' }};</script>
   <style type="text/tailwindcss">
     @layer components {{
@@ -95,12 +168,21 @@ pub fn write(path: &Path, title: &str, ctx: PageContext, body: &str) -> std::io:
       .prose-docs details .details-body {{ @apply p-3; }}
       .sidebar-link {{ @apply block px-3 py-1.5 text-sm rounded no-underline text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-zinc-900 dark:hover:text-zinc-100; }}
       .sidebar-link-active {{ @apply bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-medium; }}
+      .sidebar-sublink {{ @apply block pl-6 pr-3 py-1 text-xs rounded no-underline text-zinc-500 dark:text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-zinc-900 dark:hover:text-zinc-100; }}
+      .sidebar-sublink-active {{ @apply bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-medium; }}
       .sidebar-group {{ @apply text-xs font-semibold uppercase tracking-wide text-zinc-500 px-3 pt-4 pb-1; }}
+      .sidebar-section {{ @apply mb-1; }}
+      .sidebar-section summary {{ @apply list-none cursor-pointer px-3 py-1.5 text-sm font-medium rounded hover:bg-zinc-100 dark:hover:bg-zinc-900; }}
+      .sidebar-section summary::-webkit-details-marker {{ @apply hidden; }}
+      .sidebar-section[open] > summary {{ @apply text-zinc-900 dark:text-zinc-100; }}
       .doc-card {{ @apply block p-4 border border-zinc-300 dark:border-zinc-700 rounded no-underline hover:bg-zinc-50 dark:hover:bg-zinc-900; }}
       .meta-grid {{ @apply grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6; }}
       .meta-item {{ @apply border border-zinc-300 dark:border-zinc-700 rounded p-3; }}
       .meta-label {{ @apply text-xs font-medium text-zinc-500 uppercase tracking-wide mb-1; }}
       .meta-value {{ @apply text-sm text-zinc-800 dark:text-zinc-200; }}
+      .search-input {{ @apply w-full border border-zinc-300 dark:border-zinc-700 rounded px-2 py-1.5 text-sm bg-white dark:bg-zinc-900; }}
+      .search-results {{ @apply mt-2 max-h-48 overflow-y-auto; }}
+      .search-hit {{ @apply block px-2 py-1.5 text-xs rounded no-underline text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900; }}
     }}
   </style>
 </head>
@@ -110,6 +192,10 @@ pub fn write(path: &Path, title: &str, ctx: PageContext, body: &str) -> std::io:
       <div class="p-4 border-b border-zinc-200 dark:border-zinc-800">
         <a href="{home}" class="font-semibold no-underline text-zinc-900 dark:text-zinc-100">FeatherFly</a>
         <p class="text-xs text-zinc-500 mt-1">Documentation</p>
+      </div>
+      <div class="p-3 border-b border-zinc-200 dark:border-zinc-800">
+        <input id="doc-search" type="search" placeholder="Search docs…" class="search-input" autocomplete="off">
+        <div id="search-results" class="search-results hidden"></div>
       </div>
       <nav class="p-2 pb-8">{sidebar}</nav>
     </aside>
@@ -131,6 +217,8 @@ pub fn write(path: &Path, title: &str, ctx: PageContext, body: &str) -> std::io:
   <script>
     (function () {{
       const root = document.documentElement;
+      const fromDir = {from_dir_json};
+      const searchIndexUrl = {search_index_json};
       const btn = document.getElementById('theme-toggle');
       function apply(theme) {{
         root.classList.toggle('dark', theme === 'dark');
@@ -158,377 +246,232 @@ pub fn write(path: &Path, title: &str, ctx: PageContext, body: &str) -> std::io:
       }}
       if (toggle) toggle.addEventListener('click', openSidebar);
       if (backdrop) backdrop.addEventListener('click', closeSidebar);
+
+      function relativeHref(toPath) {{
+        const fromParts = fromDir.replace(/\/$/, '').split('/').filter(Boolean);
+        const toParts = toPath.split('/').filter(Boolean);
+        let common = 0;
+        while (common < fromParts.length && common < toParts.length && fromParts[common] === toParts[common]) {{
+          common++;
+        }}
+        const ups = fromParts.length - common;
+        const prefix = ups ? Array(ups + 1).join('../') : '';
+        return prefix + toParts.slice(common).join('/');
+      }}
+
+      let searchIndex = null;
+      const searchInput = document.getElementById('doc-search');
+      const searchResults = document.getElementById('search-results');
+      fetch(searchIndexUrl + '?v={build}', {{ cache: 'no-store' }})
+        .then(r => r.json())
+        .then(data => {{ searchIndex = data; }})
+        .catch(() => {{}});
+
+      if (searchInput && searchResults) {{
+        searchInput.addEventListener('input', function () {{
+          const q = searchInput.value.trim().toLowerCase();
+          if (!q || !searchIndex) {{
+            searchResults.classList.add('hidden');
+            searchResults.innerHTML = '';
+            return;
+          }}
+          const hits = searchIndex.filter(function (e) {{
+            return (e.title + ' ' + e.text).toLowerCase().includes(q);
+          }}).slice(0, 8);
+          if (!hits.length) {{
+            searchResults.innerHTML = '<p class="px-2 py-1 text-xs text-zinc-500">No results</p>';
+          }} else {{
+            searchResults.innerHTML = hits.map(function (e) {{
+              return '<a class="search-hit" href="' + relativeHref(e.url) + '"><strong>' + e.title + '</strong></a>';
+            }}).join('');
+          }}
+          searchResults.classList.remove('hidden');
+        }});
+      }}
     }})();
   </script>
 </body>
 </html>"##,
-            home = home_href(ctx.section),
             sidebar = sidebar(ctx),
+            from_dir_json = serde_json::to_string(from_dir).unwrap_or_else(|_| "\"\"".into()),
+            search_index_json =
+                serde_json::to_string(&search_index).unwrap_or_else(|_| "\"\"".into()),
         ),
     )
 }
 
-fn home_href(section: Section) -> &'static str {
-    match section {
-        Section::Root => "index.html",
-        Section::Plugins => "../index.html",
-        Section::PluginsNested => "../../index.html",
-        Section::Api => "../index.html",
-    }
-}
-
 fn sidebar(ctx: PageContext) -> String {
-    let groups = nav_groups(ctx.section);
+    let from_dir = section_dir(ctx.section);
     let mut out = String::new();
 
-    for group in groups {
-        out.push_str(&format!(
-            r#"<div class="sidebar-group">{label}</div>"#,
-            label = group.label
+    out.push_str(r#"<div class="sidebar-group">Start</div>"#);
+    out.push_str(&nav_link(
+        from_dir,
+        ctx.active,
+        "home",
+        "Home",
+        "index.html",
+        false,
+    ));
+
+    out.push_str(r#"<div class="sidebar-group">Plugins</div>"#);
+    for item in PLUGIN_TOP {
+        out.push_str(&nav_link(
+            from_dir, ctx.active, item.id, item.label, item.path, false,
         ));
-        for link in group.links {
-            let class = if link.id == ctx.active {
-                "sidebar-link sidebar-link-active"
-            } else {
-                "sidebar-link"
-            };
-            out.push_str(&format!(
-                r#"<a href="{href}" class="{class}">{label}</a>"#,
-                href = link.href,
-                class = class,
-                label = link.label,
-            ));
-        }
+    }
+
+    for group in PLUGIN_GROUPS {
+        out.push_str(&nav_group(from_dir, ctx.active, group));
+    }
+
+    for item in PLUGIN_BOTTOM {
+        out.push_str(&nav_link(
+            from_dir, ctx.active, item.id, item.label, item.path, false,
+        ));
+    }
+
+    out.push_str(r#"<div class="sidebar-group">HTTP API</div>"#);
+    for item in API_NAV {
+        out.push_str(&nav_link(
+            from_dir, ctx.active, item.id, item.label, item.path, false,
+        ));
     }
 
     out
 }
 
-fn nav_groups(section: Section) -> &'static [NavGroup] {
-    match section {
-        Section::Root => ROOT_NAV,
-        Section::Plugins => PLUGINS_NAV,
-        Section::PluginsNested => PLUGINS_NESTED_NAV,
-        Section::Api => API_NAV,
-    }
+fn nav_link(from_dir: &str, active: &str, id: &str, label: &str, path: &str, sub: bool) -> String {
+    let href = relative_href(from_dir, path);
+    let class = if id == active {
+        if sub {
+            "sidebar-sublink sidebar-sublink-active"
+        } else {
+            "sidebar-link sidebar-link-active"
+        }
+    } else if sub {
+        "sidebar-sublink"
+    } else {
+        "sidebar-link"
+    };
+    format!(r#"<a href="{href}" class="{class}">{label}</a>"#)
 }
 
-const ROOT_NAV: &[NavGroup] = &[
-    NavGroup {
-        label: "Start",
-        links: &[NavLink {
-            id: "home",
-            label: "Home",
-            href: "index.html",
-        }],
+fn nav_group(from_dir: &str, active: &str, group: &NavGroup) -> String {
+    let mut out = String::new();
+    if let Some(ref o) = group.overview {
+        out.push_str(&nav_link(from_dir, active, o.id, o.label, o.path, false));
+    }
+    for child in group.children {
+        out.push_str(&nav_link(
+            from_dir,
+            active,
+            child.id,
+            child.label,
+            child.path,
+            true,
+        ));
+    }
+    out
+}
+
+const PLUGIN_TOP: &[NavItem] = &[
+    NavItem {
+        id: "plugins",
+        label: "Introduction",
+        path: "plugins/index.html",
     },
-    NavGroup {
-        label: "Plugins",
-        links: &[
-            NavLink {
-                id: "plugins",
-                label: "Introduction",
-                href: "plugins/index.html",
-            },
-            NavLink {
-                id: "getting-started",
-                label: "Getting started",
-                href: "plugins/getting-started.html",
-            },
-            NavLink {
-                id: "overview",
-                label: "Overview",
-                href: "plugins/overview.html",
-            },
-            NavLink {
-                id: "events",
-                label: "Lifecycle events",
-                href: "plugins/events/index.html",
-            },
-            NavLink {
-                id: "json-hooks",
-                label: "JSON hooks",
-                href: "plugins/json-hooks/index.html",
-            },
-            NavLink {
-                id: "host-api",
-                label: "Host API",
-                href: "plugins/host-api.html",
-            },
-            NavLink {
-                id: "example",
-                label: "Full example",
-                href: "plugins/example.html",
-            },
-        ],
+    NavItem {
+        id: "getting-started",
+        label: "Getting started",
+        path: "plugins/getting-started.html",
     },
-    NavGroup {
-        label: "HTTP API",
-        links: &[
-            NavLink {
-                id: "api-swagger",
-                label: "Swagger UI",
-                href: "api/index.html",
-            },
-            NavLink {
-                id: "api-endpoints",
-                label: "Endpoints",
-                href: "api/endpoints.html",
-            },
-        ],
+    NavItem {
+        id: "overview",
+        label: "Overview",
+        path: "plugins/overview.html",
     },
 ];
 
-const PLUGINS_NAV: &[NavGroup] = &[
+const PLUGIN_GROUPS: &[NavGroup] = &[
     NavGroup {
-        label: "Start",
-        links: &[NavLink {
-            id: "home",
-            label: "Home",
-            href: "../index.html",
-        }],
-    },
-    NavGroup {
-        label: "Plugins",
-        links: &[
-            NavLink {
-                id: "plugins",
-                label: "Introduction",
-                href: "index.html",
-            },
-            NavLink {
-                id: "getting-started",
-                label: "Getting started",
-                href: "getting-started.html",
-            },
-            NavLink {
-                id: "overview",
-                label: "Overview",
-                href: "overview.html",
-            },
-            NavLink {
-                id: "events",
-                label: "Lifecycle events",
-                href: "events/index.html",
-            },
-            NavLink {
+        overview: Some(NavItem {
+            id: "events",
+            label: "Lifecycle events",
+            path: "plugins/events/index.html",
+        }),
+        children: &[
+            NavItem {
                 id: "event-config-loaded",
                 label: "config.loaded",
-                href: "events/config-loaded.html",
+                path: "plugins/events/config-loaded.html",
             },
-            NavLink {
+            NavItem {
                 id: "event-plugin-loaded",
                 label: "plugin.loaded",
-                href: "events/plugin-loaded.html",
+                path: "plugins/events/plugin-loaded.html",
             },
-            NavLink {
+            NavItem {
                 id: "event-daemon-starting",
                 label: "daemon.starting",
-                href: "events/daemon-starting.html",
+                path: "plugins/events/daemon-starting.html",
             },
-            NavLink {
+            NavItem {
                 id: "event-daemon-started",
                 label: "daemon.started",
-                href: "events/daemon-started.html",
+                path: "plugins/events/daemon-started.html",
             },
-            NavLink {
+            NavItem {
                 id: "event-daemon-stopping",
                 label: "daemon.stopping",
-                href: "events/daemon-stopping.html",
-            },
-            NavLink {
-                id: "json-hooks",
-                label: "JSON hooks",
-                href: "json-hooks/index.html",
-            },
-            NavLink {
-                id: "json-response",
-                label: "json.response",
-                href: "json-hooks/response-body.html",
-            },
-            NavLink {
-                id: "json-actions",
-                label: "json.actions",
-                href: "json-hooks/response-actions.html",
-            },
-            NavLink {
-                id: "host-api",
-                label: "Host API",
-                href: "host-api.html",
-            },
-            NavLink {
-                id: "example",
-                label: "Full example",
-                href: "example.html",
+                path: "plugins/events/daemon-stopping.html",
             },
         ],
     },
     NavGroup {
-        label: "HTTP API",
-        links: &[
-            NavLink {
-                id: "api-swagger",
-                label: "Swagger UI",
-                href: "../api/index.html",
+        overview: Some(NavItem {
+            id: "json-hooks",
+            label: "JSON hooks",
+            path: "plugins/json-hooks/index.html",
+        }),
+        children: &[
+            NavItem {
+                id: "json-response",
+                label: "json.response",
+                path: "plugins/json-hooks/response-body.html",
             },
-            NavLink {
-                id: "api-endpoints",
-                label: "Endpoints",
-                href: "../api/endpoints.html",
+            NavItem {
+                id: "json-actions",
+                label: "json.actions",
+                path: "plugins/json-hooks/response-actions.html",
             },
         ],
     },
 ];
 
-const PLUGINS_NESTED_NAV: &[NavGroup] = &[
-    NavGroup {
-        label: "Start",
-        links: &[NavLink {
-            id: "home",
-            label: "Home",
-            href: "../../index.html",
-        }],
+const PLUGIN_BOTTOM: &[NavItem] = &[
+    NavItem {
+        id: "host-api",
+        label: "Host API",
+        path: "plugins/host-api.html",
     },
-    NavGroup {
-        label: "Plugins",
-        links: &[
-            NavLink {
-                id: "plugins",
-                label: "Introduction",
-                href: "../index.html",
-            },
-            NavLink {
-                id: "getting-started",
-                label: "Getting started",
-                href: "../getting-started.html",
-            },
-            NavLink {
-                id: "overview",
-                label: "Overview",
-                href: "../overview.html",
-            },
-            NavLink {
-                id: "events",
-                label: "Lifecycle events",
-                href: "../events/index.html",
-            },
-            NavLink {
-                id: "event-config-loaded",
-                label: "config.loaded",
-                href: "../events/config-loaded.html",
-            },
-            NavLink {
-                id: "event-plugin-loaded",
-                label: "plugin.loaded",
-                href: "../events/plugin-loaded.html",
-            },
-            NavLink {
-                id: "event-daemon-starting",
-                label: "daemon.starting",
-                href: "../events/daemon-starting.html",
-            },
-            NavLink {
-                id: "event-daemon-started",
-                label: "daemon.started",
-                href: "../events/daemon-started.html",
-            },
-            NavLink {
-                id: "event-daemon-stopping",
-                label: "daemon.stopping",
-                href: "../events/daemon-stopping.html",
-            },
-            NavLink {
-                id: "json-hooks",
-                label: "JSON hooks",
-                href: "../json-hooks/index.html",
-            },
-            NavLink {
-                id: "json-response",
-                label: "json.response",
-                href: "../json-hooks/response-body.html",
-            },
-            NavLink {
-                id: "json-actions",
-                label: "json.actions",
-                href: "../json-hooks/response-actions.html",
-            },
-            NavLink {
-                id: "host-api",
-                label: "Host API",
-                href: "../host-api.html",
-            },
-            NavLink {
-                id: "example",
-                label: "Full example",
-                href: "../example.html",
-            },
-        ],
-    },
-    NavGroup {
-        label: "HTTP API",
-        links: &[
-            NavLink {
-                id: "api-swagger",
-                label: "Swagger UI",
-                href: "../../api/index.html",
-            },
-            NavLink {
-                id: "api-endpoints",
-                label: "Endpoints",
-                href: "../../api/endpoints.html",
-            },
-        ],
+    NavItem {
+        id: "example",
+        label: "Full example",
+        path: "plugins/example.html",
     },
 ];
 
-const API_NAV: &[NavGroup] = &[
-    NavGroup {
-        label: "Start",
-        links: &[NavLink {
-            id: "home",
-            label: "Home",
-            href: "../index.html",
-        }],
+const API_NAV: &[NavItem] = &[
+    NavItem {
+        id: "api-swagger",
+        label: "Swagger UI",
+        path: "api/index.html",
     },
-    NavGroup {
-        label: "Plugins",
-        links: &[
-            NavLink {
-                id: "plugins",
-                label: "Introduction",
-                href: "../plugins/index.html",
-            },
-            NavLink {
-                id: "getting-started",
-                label: "Getting started",
-                href: "../plugins/getting-started.html",
-            },
-            NavLink {
-                id: "events",
-                label: "Lifecycle events",
-                href: "../plugins/events/index.html",
-            },
-            NavLink {
-                id: "json-hooks",
-                label: "JSON hooks",
-                href: "../plugins/json-hooks/index.html",
-            },
-        ],
-    },
-    NavGroup {
-        label: "HTTP API",
-        links: &[
-            NavLink {
-                id: "api-swagger",
-                label: "Swagger UI",
-                href: "index.html",
-            },
-            NavLink {
-                id: "api-endpoints",
-                label: "Endpoints",
-                href: "endpoints.html",
-            },
-        ],
+    NavItem {
+        id: "api-endpoints",
+        label: "Endpoints",
+        path: "api/endpoints.html",
     },
 ];
 

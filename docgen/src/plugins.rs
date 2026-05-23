@@ -31,7 +31,7 @@ pub fn generate_plugin_docs(output: &Path) -> std::io::Result<()> {
     html::write(
         &output.join("events/index.html"),
         "Lifecycle events",
-        PageContext::plugins("events"),
+        PageContext::plugin_events("events"),
         &events_index_page(),
     )?;
     for doc in EVENT_DOCS {
@@ -39,14 +39,14 @@ pub fn generate_plugin_docs(output: &Path) -> std::io::Result<()> {
         html::write(
             &output.join(format!("events/{slug}.html")),
             doc.name,
-            PageContext::plugins_nested(event_active_id(doc.name)),
+            PageContext::plugin_events(event_active_id(doc.name)),
             &event_detail_page(doc),
         )?;
     }
     html::write(
         &output.join("json-hooks/index.html"),
         "JSON hooks",
-        PageContext::plugins("json-hooks"),
+        PageContext::plugin_json_hooks("json-hooks"),
         &json_hooks_index_page(),
     )?;
     for doc in JSON_HOOK_DOCS {
@@ -54,7 +54,7 @@ pub fn generate_plugin_docs(output: &Path) -> std::io::Result<()> {
         html::write(
             &output.join(format!("json-hooks/{slug}.html")),
             doc.name,
-            PageContext::plugins_nested(active),
+            PageContext::plugin_json_hooks(active),
             &json_hook_detail_page(doc),
         )?;
     }

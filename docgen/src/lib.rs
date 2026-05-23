@@ -1,6 +1,7 @@
 mod api;
 mod html;
 mod plugins;
+mod search;
 
 use html::PageContext;
 use std::fs;
@@ -20,6 +21,9 @@ pub fn generate_all(output: &Path, openapi: &utoipa::openapi::OpenApi) -> std::i
     generate_plugin_docs(&output.join("plugins"))?;
     generate_api_docs(&output.join("api"), openapi)?;
     write_hub(&output.join("index.html"))?;
+    search::write_index(output)?;
+
+    fs::write(output.join(".nojekyll"), "")?;
 
     Ok(())
 }
@@ -27,7 +31,9 @@ pub fn generate_all(output: &Path, openapi: &utoipa::openapi::OpenApi) -> std::i
 pub fn generate_minimal(output: &Path) -> std::io::Result<()> {
     fs::create_dir_all(output.join("plugins"))?;
     generate_plugin_docs(&output.join("plugins"))?;
-    write_hub(&output.join("index.html"))
+    write_hub(&output.join("index.html"))?;
+    search::write_index(output)?;
+    fs::write(output.join(".nojekyll"), "")
 }
 
 fn write_hub(path: &Path) -> std::io::Result<()> {
