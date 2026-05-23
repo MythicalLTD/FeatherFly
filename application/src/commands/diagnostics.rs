@@ -56,16 +56,8 @@ impl crate::commands::CliCommand<DiagnosticsArgs> for DiagnosticsCommand {
                     "api listen",
                     &format!("{}:{}", inner.api.host, inner.api.port),
                 )?;
-                write_line(
-                    &mut report,
-                    "root directory",
-                    &inner.system.root_directory,
-                )?;
-                write_line(
-                    &mut report,
-                    "log directory",
-                    &inner.system.log_directory,
-                )?;
+                write_line(&mut report, "root directory", &inner.system.root_directory)?;
+                write_line(&mut report, "log directory", &inner.system.log_directory)?;
                 write_line(&mut report, "tmp directory", &inner.system.tmp_directory)?;
                 write_line(&mut report, "username", &inner.system.username)?;
                 write_line(&mut report, "pid file", &inner.system.pid_file)?;
@@ -79,8 +71,8 @@ impl crate::commands::CliCommand<DiagnosticsArgs> for DiagnosticsCommand {
                         .unwrap_or_else(|_| "unknown".into()),
                 )?;
 
-                let log_path = std::path::Path::new(&inner.system.log_directory)
-                    .join("featherfly.log");
+                let log_path =
+                    std::path::Path::new(&inner.system.log_directory).join("featherfly.log");
                 write_section(&mut report, "recent logs")?;
                 match tokio::fs::read_to_string(&log_path).await {
                     Ok(contents) => {

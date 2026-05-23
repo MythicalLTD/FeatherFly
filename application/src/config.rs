@@ -116,7 +116,6 @@ impl Config {
     ) -> Result<String, anyhow::Error> {
         const DEFAULT_CONFIG_PATH: &str = "/etc/featherfly/config.yml";
         const DEBUG_CONFIG_NAME: &str = "config.yml";
-        const ETC_CONFIG_DIR: &str = "/etc/featherfly";
 
         if from_command_line {
             return Ok(explicit.unwrap_or(DEFAULT_CONFIG_PATH).to_string());
@@ -129,9 +128,6 @@ impl Config {
 
             return Ok(path.to_string_lossy().into_owned());
         }
-
-        std::fs::create_dir_all(ETC_CONFIG_DIR)
-            .with_context(|| format!("failed to create directory {ETC_CONFIG_DIR}"))?;
 
         Ok(DEFAULT_CONFIG_PATH.to_string())
     }

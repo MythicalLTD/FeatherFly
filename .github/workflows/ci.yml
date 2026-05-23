@@ -13,6 +13,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  CARGO_INCREMENTAL: 0
 
 jobs:
   checks:
@@ -28,7 +29,12 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt, clippy
-          cache-key: ci
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci
+          cache-on-failure: true
 
       - name: Check formatting
         run: cargo fmt --all -- --check

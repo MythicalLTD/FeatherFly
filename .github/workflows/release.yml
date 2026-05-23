@@ -8,6 +8,7 @@ on:
 env:
   BIN_NAME: featherfly
   PROJECT_NAME: featherfly
+  CARGO_INCREMENTAL: 0
 
 jobs:
   dist:
@@ -36,11 +37,24 @@ jobs:
         with:
           toolchain: stable
           target: ${{ matrix.target }}
-          cache-key: release-${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-${{ matrix.target }}
+          cache-on-failure: true
+
+      - name: Cache cross
+        if: matrix.build == 'aarch64-linux'
+        uses: actions/cache@v4
+        id: cross-cache
+        with:
+          path: ~/.cargo/bin/cross
+          key: cross-${{ runner.os }}-v1
 
       - name: Install cross
-        if: matrix.build == 'aarch64-linux'
-        run: cargo install cross --git https://github.com/cross-rs/cross
+        if: matrix.build == 'aarch64-linux' && steps.cross-cache.outputs.cache-hit != 'true'
+        run: cargo install cross --git https://github.com/cross-rs/cross --locked
 
       - name: Determine release version
         id: release_info

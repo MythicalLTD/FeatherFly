@@ -9,7 +9,10 @@ const BIN_PATH: &str = "/usr/local/bin/featherfly";
 const CONFIG_DIR: &str = "/etc/featherfly";
 const CONFIG_PATH: &str = "/etc/featherfly/config.yml";
 const SERVICE_PATH: &str = "/etc/systemd/system/featherfly.service";
-const DEFAULT_CONFIG: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../config.example.yml"));
+const DEFAULT_CONFIG: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../config.example.yml"
+));
 
 #[derive(Args)]
 pub struct InstallArgs {
@@ -61,7 +64,8 @@ impl crate::commands::CliCommand<InstallArgs> for InstallCommand {
 
 fn install_binary(current: &Path) -> anyhow::Result<()> {
     if current != Path::new(BIN_PATH) {
-        fs::copy(current, BIN_PATH).with_context(|| format!("failed to copy binary to {BIN_PATH}"))?;
+        fs::copy(current, BIN_PATH)
+            .with_context(|| format!("failed to copy binary to {BIN_PATH}"))?;
         fs::set_permissions(BIN_PATH, fs::Permissions::from_mode(0o755))
             .with_context(|| format!("failed to chmod {BIN_PATH}"))?;
     }

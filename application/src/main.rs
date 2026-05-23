@@ -155,11 +155,13 @@ async fn main_rt() {
     openapi.info.description =
         Some("FeatherFly web hosting daemon API — part of the FeatherPanel ecosystem.".into());
     openapi.info.title = format!("{} API", config.load().app_name);
-    openapi.info.contact = Some(utoipa::openapi::ContactBuilder::new()
-        .name(Some("FeatherPanel"))
-        .url(Some(PROJECT_WEBSITE))
-        .email(Some("support@featherpanel.com"))
-        .build());
+    openapi.info.contact = Some(
+        utoipa::openapi::ContactBuilder::new()
+            .name(Some("FeatherPanel"))
+            .url(Some(PROJECT_WEBSITE))
+            .email(Some("support@featherpanel.com"))
+            .build(),
+    );
     openapi.info.license = Some(utoipa::openapi::License::new(PROJECT_LICENSE));
 
     openapi.components.as_mut().unwrap().add_security_scheme(
