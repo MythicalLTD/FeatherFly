@@ -15,6 +15,111 @@ pub struct EventDoc {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub struct HookGuideDoc {
+    pub name: &'static str,
+    pub summary: &'static str,
+    pub when: &'static str,
+    pub input: &'static str,
+    pub output: &'static str,
+    pub pipeline: &'static str,
+    pub route_matching: &'static str,
+    pub details: &'static str,
+    pub use_cases: &'static [&'static str],
+    pub register_example: &'static str,
+    pub handler_example: &'static str,
+    pub source_path: &'static str,
+}
+
+pub const SOURCE_TREE: &str = r#"Key paths in the FeatherFly repository for plugin developers:
+
+| Path | Purpose |
+|------|---------|
+| `featherfly-plugin-sdk/src/lib.rs` | Plugin API types, macros, return codes |
+| `featherfly-plugin-sdk/src/metadata.rs` | Documentation strings consumed by docgen |
+| `application/src/daemon.rs` | Startup, config pipeline, HTTP server wiring |
+| `application/src/plugins/mod.rs` | Plugin loader, HostApi trampolines |
+| `application/src/plugins/events.rs` | Hook registries, config/request/route dispatch |
+| `application/src/plugins/request_middleware.rs` | request.intercept + middleware.inject Axum layers |
+| `application/src/plugins/routes.rs` | Plugin route registration and dispatch |
+| `application/src/plugins/middleware.rs` | JSON response mutation middleware |
+| `application/src/config.rs` | Config parse, preview, apply after mutation |
+| `plugins/hello/src/lib.rs` | Reference plugin with all v4 hook types |
+"#;
+
+pub const RETURN_CODES: &str = r#"## init
+
+| Code | Meaning |
+|------|---------|
+| `0` | Plugin loaded successfully |
+| non-zero | Plugin load fails; `.so` is skipped |
+
+## Lifecycle hooks
+
+| Return | Meaning |
+|--------|---------|
+| `HookResult::continue()` | Run remaining handlers for this event |
+| `HookResult::cancel()` | Stop remaining handlers for this event |
+
+## config.mutate
+
+| Code | Meaning |
+|------|---------|
+| `CONFIG_MUTATE_MODIFIED` (0) | Output written via `write_yaml_output` |
+| `CONFIG_MUTATE_UNCHANGED` (1) | Keep prior YAML bytes |
+| negative | Error; prior YAML kept |
+
+## request.intercept / middleware.inject
+
+| Code | Meaning |
+|------|---------|
+| `REQUEST_CONTINUE` (0) | Pass to next hook or HTTP handler |
+| `REQUEST_RESPOND` (1) | Short-circuit; body from `write_request_response` |
+| negative | Error; request continues |
+
+## route.register
+
+| Code | Meaning |
+|------|---------|
+| `ROUTE_OK` (0) | Response written via `write_route_response` |
+| negative | Handler error; 500 returned |
+
+## JSON hooks
+
+| Code | Meaning |
+|------|---------|
+| `JSON_MUTATE_MODIFIED` (0) | Output written via `write_json_output` |
+| `JSON_MUTATE_UNCHANGED` (1) | Keep prior JSON |
+| negative | Error; prior JSON kept |
+"#;
+
+pub const REQUEST_PIPELINE: &str = r#"## HTTP request stack
+
+```
+Client request
+    │
+    ▼
+response_middleware (pass-through on request; mutates JSON on response)
+    │
+    ▼
+request.intercept hooks (outer — auth, rate limits, early reject)
+    │
+    ▼
+middleware.inject hooks (inner — tracing, header checks)
+    │
+    ▼
+handle_request (debug logging)
+    │
+    ▼
+Axum router (core routes + plugin routes)
+```
+
+Request hooks receive method, path, headers as JSON, and body bytes. Headers use lowercase keys. `authorization` is redacted.
+
+Route patterns use prefix matching: `/api/*` matches `/api/system`, `/plugins/hello` matches exactly that path prefix chain.
+
+Plugin routes register during `init` and merge into the same router as core API routes."#;
+
+#[derive(Debug, Clone, Copy)]
 pub struct JsonHookDoc {
     pub target: JsonMutateTarget,
     pub name: &'static str,
@@ -114,21 +219,41 @@ make plugin-ship PLUGIN=plugins/hello
 
 **Version mismatch:** if `descriptor.api_version` ≠ daemon API version, the plugin is skipped with a warning."#;
 
-pub const FULL_PLUGIN_EXAMPLE: &str = r#"use featherfly_plugin_sdk::{
-    declare_plugin, hook, hook_json, log_info, write_json_output, EventContext, HookResult,
-    HostApi, JsonMutateContext, JsonMutateTarget, PluginEvent, JSON_MUTATE_UNCHANGED,
+pub const FULL_PLUGIN_EXAMPLE: &str = r##"use featherfly_plugin_sdk::{
+    declare_plugin, hook, hook_config, hook_json, hook_request, log_info, route,
+    write_json_output, write_route_response, write_yaml_output,
+    ConfigMutateContext, EventContext, HookResult, HostApi, JsonMutateContext, JsonMutateTarget,
+    PluginEvent, RequestHookContext, RequestHookPhase, RouteHandlerContext,
+    CONFIG_MUTATE_UNCHANGED, HTTP_METHOD_GET, JSON_MUTATE_UNCHANGED, REQUEST_CONTINUE,
 };
 
 extern "C" fn init(host: *const HostApi) -> i32 {
     hook!(host, PluginEvent::DaemonStarted, on_started);
+    hook_config!(host, on_config);
+    hook_request!(host, RequestHookPhase::Intercept, "/api/*", on_intercept);
     hook_json!(host, JsonMutateTarget::ResponseBody, "/api/system", on_body);
-    hook_json!(host, JsonMutateTarget::ResponseActions, "/api/system", on_actions);
-    unsafe { log_info(host, "my-plugin ready") };
+    route!(host, HTTP_METHOD_GET, "/plugins/hello", on_route);
+    unsafe { log_info(host, "ready") };
     0
 }
 
 extern "C" fn on_started(_ctx: *const EventContext) -> HookResult {
     HookResult::r#continue()
+}
+
+extern "C" fn on_config(ctx: *const ConfigMutateContext) -> i32 {
+    let ctx = unsafe { &*ctx };
+    let input = unsafe { std::slice::from_raw_parts(ctx.yaml_in_ptr, ctx.yaml_in_len) };
+    if input.starts_with(b"# my-plugin\n") {
+        return CONFIG_MUTATE_UNCHANGED;
+    }
+    let mut out = b"# my-plugin\n".to_vec();
+    out.extend_from_slice(input);
+    write_yaml_output(ctx, &out)
+}
+
+extern "C" fn on_intercept(_ctx: *const RequestHookContext) -> i32 {
+    REQUEST_CONTINUE
 }
 
 extern "C" fn on_body(ctx: *const JsonMutateContext) -> i32 {
@@ -144,44 +269,34 @@ extern "C" fn on_body(ctx: *const JsonMutateContext) -> i32 {
     write_json_output(ctx, &out)
 }
 
-extern "C" fn on_actions(ctx: *const JsonMutateContext) -> i32 {
+extern "C" fn on_route(ctx: *const RouteHandlerContext) -> i32 {
     let ctx = unsafe { &*ctx };
-    let input = unsafe { std::slice::from_raw_parts(ctx.json_in_ptr, ctx.json_in_len) };
-    let Ok(mut actions) = serde_json::from_slice::<Vec<serde_json::Value>>(input) else {
-        return JSON_MUTATE_UNCHANGED;
-    };
-    actions.push(serde_json::json!({
-        "id": "my_step",
-        "label": "My plugin step",
-        "step": "GET /api/system/plugins"
-    }));
-    let Ok(out) = serde_json::to_vec(&actions) else { return JSON_MUTATE_UNCHANGED };
-    write_json_output(ctx, &out)
+    write_route_response(ctx, 200, br#"{"ok":true}"#)
 }
 
-declare_plugin! { name: "my-plugin", version: "0.1.0", init: init }"#;
+declare_plugin! { name: "my-plugin", version: "0.1.0", init: init }"##;
 
 pub const EVENT_DOCS: &[EventDoc] = &[
     EventDoc {
         event: PluginEvent::ConfigLoaded,
         name: "config.loaded",
         summary: "Config file has been parsed.",
-        when: "Before any plugin `.so` is loaded.",
-        payload: "Raw bytes of the active config YAML file.",
+        when: "After all plugins load and config.mutate hooks finish.",
+        payload: "Post-mutation raw bytes of config.yml.",
         cancelable: true,
-        details: "Use this to inspect config before plugins initialize. The payload is the exact file contents — parse as UTF-8 YAML in your handler if needed. You cannot change config from this hook; it is read-only notification.",
+        details: "Fires once per startup with the YAML bytes that were actually applied — after config.mutate hooks ran. Parse as UTF-8 YAML in your handler. This is read-only; use config.mutate to change settings before apply.",
         use_cases: &[
             "Validate config and log warnings",
             "Record config hash for diagnostics",
             "Skip registering hooks based on config content",
         ],
         register_example: "hook!(host, PluginEvent::ConfigLoaded, on_config_loaded);",
-        handler_example: r#"extern "C" fn on_config_loaded(ctx: *const EventContext) -> HookResult {
+        handler_example: r##"extern "C" fn on_config_loaded(ctx: *const EventContext) -> HookResult {
     let ctx = unsafe { &*ctx };
     let payload = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
     let _yaml = std::str::from_utf8(payload).unwrap_or_default();
     HookResult::r#continue()
-}"#,
+}"##,
     },
     EventDoc {
         event: PluginEvent::PluginLoaded,
@@ -197,12 +312,12 @@ pub const EVENT_DOCS: &[EventDoc] = &[
             "Audit plugin load order",
         ],
         register_example: "hook!(host, PluginEvent::PluginLoaded, on_plugin_loaded);",
-        handler_example: r#"extern "C" fn on_plugin_loaded(ctx: *const EventContext) -> HookResult {
+        handler_example: r##"extern "C" fn on_plugin_loaded(ctx: *const EventContext) -> HookResult {
     let ctx = unsafe { &*ctx };
     let name = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
     let _name = std::str::from_utf8(name).unwrap_or_default();
     HookResult::r#continue()
-}"#,
+}"##,
     },
     EventDoc {
         event: PluginEvent::DaemonStarting,
@@ -218,9 +333,9 @@ pub const EVENT_DOCS: &[EventDoc] = &[
             "Validate environment before HTTP binds",
         ],
         register_example: "hook!(host, PluginEvent::DaemonStarting, on_daemon_starting);",
-        handler_example: r#"extern "C" fn on_daemon_starting(_ctx: *const EventContext) -> HookResult {
+        handler_example: r##"extern "C" fn on_daemon_starting(_ctx: *const EventContext) -> HookResult {
     HookResult::r#continue()
-}"#,
+}"##,
     },
     EventDoc {
         event: PluginEvent::DaemonStarted,
@@ -236,12 +351,12 @@ pub const EVENT_DOCS: &[EventDoc] = &[
             "Emit startup metrics",
         ],
         register_example: "hook!(host, PluginEvent::DaemonStarted, on_daemon_started);",
-        handler_example: r#"extern "C" fn on_daemon_started(ctx: *const EventContext) -> HookResult {
+        handler_example: r##"extern "C" fn on_daemon_started(ctx: *const EventContext) -> HookResult {
     let ctx = unsafe { &*ctx };
     let addr = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
     let _addr = std::str::from_utf8(addr).unwrap_or_default();
     HookResult::r#continue()
-}"#,
+}"##,
     },
     EventDoc {
         event: PluginEvent::DaemonStopping,
@@ -257,9 +372,9 @@ pub const EVENT_DOCS: &[EventDoc] = &[
             "Coordinate ordered shutdown between plugins",
         ],
         register_example: "hook!(host, PluginEvent::DaemonStopping, on_daemon_stopping);",
-        handler_example: r#"extern "C" fn on_daemon_stopping(_ctx: *const EventContext) -> HookResult {
+        handler_example: r##"extern "C" fn on_daemon_stopping(_ctx: *const EventContext) -> HookResult {
     HookResult::r#continue()
-}"#,
+}"##,
     },
 ];
 
@@ -278,7 +393,7 @@ pub const JSON_HOOK_DOCS: &[JsonHookDoc] = &[
             "Rename or normalize field names for panels",
         ],
         register_example: "hook_json!(host, JsonMutateTarget::ResponseBody, \"/api/system\", on_body);",
-        handler_example: r#"extern "C" fn on_body(ctx: *const JsonMutateContext) -> i32 {
+        handler_example: r##"extern "C" fn on_body(ctx: *const JsonMutateContext) -> i32 {
     let ctx = unsafe { &*ctx };
     let input = unsafe { std::slice::from_raw_parts(ctx.json_in_ptr, ctx.json_in_len) };
     let Ok(mut value) = serde_json::from_slice::<serde_json::Value>(input) else {
@@ -289,7 +404,7 @@ pub const JSON_HOOK_DOCS: &[JsonHookDoc] = &[
     }
     let Ok(out) = serde_json::to_vec(&value) else { return JSON_MUTATE_UNCHANGED };
     write_json_output(ctx, &out)
-}"#,
+}"##,
     },
     JsonHookDoc {
         target: JsonMutateTarget::ResponseActions,
@@ -305,7 +420,7 @@ pub const JSON_HOOK_DOCS: &[JsonHookDoc] = &[
             "Rewrite step labels for localization",
         ],
         register_example: "hook_json!(host, JsonMutateTarget::ResponseActions, \"/api/system\", on_actions);",
-        handler_example: r#"extern "C" fn on_actions(ctx: *const JsonMutateContext) -> i32 {
+        handler_example: r##"extern "C" fn on_actions(ctx: *const JsonMutateContext) -> i32 {
     let ctx = unsafe { &*ctx };
     let input = unsafe { std::slice::from_raw_parts(ctx.json_in_ptr, ctx.json_in_len) };
     let Ok(mut actions) = serde_json::from_slice::<Vec<serde_json::Value>>(input) else {
@@ -319,18 +434,125 @@ pub const JSON_HOOK_DOCS: &[JsonHookDoc] = &[
     }));
     let Ok(out) = serde_json::to_vec(&actions) else { return JSON_MUTATE_UNCHANGED };
     write_json_output(ctx, &out)
-}"#,
+}"##,
     },
 ];
+
+pub const CONFIG_HOOK_DOCS: &[HookGuideDoc] = &[HookGuideDoc {
+    name: "config.mutate",
+    summary: "Rewrite config YAML before FeatherFly applies settings.",
+    when: "After all plugins init, before directories/logging/pid are created.",
+    input: "Raw config.yml bytes from disk.",
+    output: "Replacement YAML bytes via write_yaml_output.",
+    pipeline: "Runs in plugin load order. Each hook receives the previous hook's output.",
+    route_matching: "N/A — global config pipeline, not route-scoped.",
+    details: "Use to inject defaults, strip keys, or apply environment-specific overrides. Output must remain valid YAML. Invalid output keeps the prior bytes. Register with hook_config! during init.",
+    use_cases: &[
+        "Inject default plugin paths per environment",
+        "Strip development-only keys in production",
+        "Merge secrets from external sources into YAML",
+    ],
+    register_example: "hook_config!(host, on_config_mutate);",
+    handler_example: r##"extern "C" fn on_config_mutate(ctx: *const ConfigMutateContext) -> i32 {
+    let ctx = unsafe { &*ctx };
+    let input = unsafe { std::slice::from_raw_parts(ctx.yaml_in_ptr, ctx.yaml_in_len) };
+    let mut out = input.to_vec();
+    out.extend_from_slice(b"\nplugins:\n  enabled: true\n");
+    write_yaml_output(ctx, &out)
+}"##,
+    source_path: "application/src/plugins/events.rs",
+}];
+
+pub const REQUEST_HOOK_DOCS: &[HookGuideDoc] = &[
+    HookGuideDoc {
+        name: "request.intercept",
+        summary: "Inspect inbound HTTP requests before handlers run.",
+        when: "On every matching request, outermost request hook layer.",
+        input: "Method code, path, headers JSON (lowercase keys), body bytes.",
+        output: "REQUEST_CONTINUE or short-circuit via write_request_response.",
+        pipeline: "Runs before middleware.inject and before Axum handlers.",
+        route_matching: "Prefix match: `/api/*`, `/plugins/hello`, `*` for all routes.",
+        details: "First hook layer on inbound requests. Use for auth gates, rate limits, and early JSON error responses. authorization header value is redacted in headers JSON.",
+        use_cases: &[
+            "API key or custom header validation",
+            "Block requests before they hit core handlers",
+            "Audit log method + path for matching routes",
+        ],
+        register_example: "hook_request!(host, RequestHookPhase::Intercept, \"/api/*\", on_intercept);",
+        handler_example: r##"extern "C" fn on_intercept(ctx: *const RequestHookContext) -> i32 {
+    let ctx = unsafe { &*ctx };
+    let headers = unsafe { std::slice::from_raw_parts(ctx.headers_json_ptr, ctx.headers_json_len) };
+    let Ok(value) = serde_json::from_slice::<serde_json::Value>(headers) else {
+        return REQUEST_CONTINUE;
+    };
+    if value.get("x-api-key").is_some() {
+        return REQUEST_CONTINUE;
+    }
+    write_request_response(ctx, 401, br#"{"error":"unauthorized"}"#)
+}"##,
+        source_path: "application/src/plugins/request_middleware.rs",
+    },
+    HookGuideDoc {
+        name: "middleware.inject",
+        summary: "Inner request middleware layer before handlers.",
+        when: "After request.intercept hooks, before handle_request logging.",
+        input: "Same as request.intercept.",
+        output: "Same as request.intercept.",
+        pipeline: "Runs after intercept hooks on the same route prefix.",
+        route_matching: "Same prefix rules as request.intercept.",
+        details: "Second request hook phase. Use for cross-cutting checks that should run after outer auth but before route handlers — header normalization, tracing tags, request enrichment.",
+        use_cases: &[
+            "Validate content-type on POST routes",
+            "Attach request context for downstream hooks",
+            "Soft limits that allow fallback handlers",
+        ],
+        register_example: "hook_request!(host, RequestHookPhase::Middleware, \"/api/*\", on_middleware);",
+        handler_example: r##"extern "C" fn on_middleware(_ctx: *const RequestHookContext) -> i32 {
+    REQUEST_CONTINUE
+}"##,
+        source_path: "application/src/plugins/request_middleware.rs",
+    },
+];
+
+pub const ROUTE_HOOK_DOCS: &[HookGuideDoc] = &[HookGuideDoc {
+    name: "route.register",
+    summary: "Expose new HTTP routes on the daemon router.",
+    when: "Registered during init; routes active once HTTP server starts.",
+    input: "Request body bytes for matching method + path.",
+    output: "Response body + status via write_route_response.",
+    pipeline: "Plugin routes merge into the main Axum router alongside core API routes.",
+    route_matching: "Exact path per registration. Method must match (GET/POST/PUT/PATCH/DELETE).",
+    details: "Paths must start with `/`. Duplicate method+path registrations fail at init. Plugin routes do not require Bearer auth unless your handler or intercept hooks enforce it.",
+    use_cases: &[
+        "Custom webhooks and panel callbacks",
+        "Plugin-specific REST APIs without forking FeatherFly",
+        "Static JSON config endpoints for operators",
+    ],
+    register_example: "route!(host, HTTP_METHOD_GET, \"/plugins/hello\", on_hello);",
+    handler_example: r##"extern "C" fn on_hello(ctx: *const RouteHandlerContext) -> i32 {
+    let ctx = unsafe { &*ctx };
+    write_route_response(ctx, 200, br#"{"plugin":"hello"}"#)
+}"##,
+    source_path: "application/src/plugins/routes.rs",
+}];
 
 pub const MACROS: &[(&str, &str)] = &[
     (
         "declare_plugin!",
         "Exports featherfly_plugin_entry with name, version, init, and optional shutdown.",
     ),
+    ("hook!", "Registers a lifecycle event handler during init."),
     (
-        "hook!",
-        "Registers a lifecycle event handler during init. Returns init error code if registration fails.",
+        "hook_config!",
+        "Registers a config.mutate handler that rewrites YAML before apply.",
+    ),
+    (
+        "hook_request!",
+        "Registers request.intercept or middleware.inject for a route prefix.",
+    ),
+    (
+        "route!",
+        "Registers a plugin HTTP route (GET/POST/PUT/PATCH/DELETE).",
     ),
     (
         "hook_json!",
@@ -362,8 +584,11 @@ pub const TERMINOLOGY: &str = r#"FeatherFly plugin vocabulary — read this befo
 | **Host** | The running FeatherFly daemon. Passes `HostApi` to your `init`. |
 | **Hook** | A callback your plugin registers during `init`. |
 | **Event** | A lifecycle hook fired at a fixed point (startup, shutdown, config load). |
+| **Config mutation hook** | Rewrites raw config YAML bytes before settings are applied (`config.mutate`). |
+| **Request hook** | Runs before HTTP handlers — `request.intercept` (outer) or `middleware.inject` (inner). |
+| **Plugin route** | A handler registered with `route!` that serves a new HTTP endpoint. |
 | **JSON mutation hook** | A hook that receives JSON bytes, may rewrite them, and returns output for HTTP responses. |
-| **Target** | What a hook listens to — an event name (`daemon.started`) or JSON target (`json.response`). |
+| **Target** | What a hook listens to — an event name, config pipeline, route prefix, or JSON target. |
 | **Pipeline** | Ordered chain of hooks for one target. Each hook sees the previous hook's output. |
 | **Mixin** | FeatherFly's model for JSON hooks: multiple plugins stack transformations on the same response, like Minecraft mixins layering behavior. |
 | **Load order** | Alphabetical by `.so` filename in the plugins directory. Determines pipeline order. |
@@ -378,19 +603,22 @@ FeatherFly plugins extend the daemon **without recompiling it**, similar to how 
 ```
 Daemon startup
     │
-    ├─ config.loaded ──► [plugin A] ──► [plugin B] ──► ...
-    │
     ├─ load .so files (alphabetical)
-    │       └─ init(host) ── register hooks
+    │       └─ init(host) ── register all hooks
     │
-    ├─ plugin.loaded (per plugin)
+    ├─ config.mutate pipeline ──► [plugin A] ──► [plugin B] ──► final YAML
+    │
+    ├─ config.loaded (post-mutation YAML bytes)
     │
     └─ HTTP listening
             │
-            └─ JSON response for /api/system/*
-                    │
-                    ├─ json.response pipeline ──► body object rewritten per plugin
-                    └─ json.actions pipeline  ──► actions[] rewritten per plugin
+            ├─ request.intercept ──► middleware.inject ──► handler
+            │
+            ├─ plugin routes (route.register)
+            │
+            └─ JSON response for /api/*
+                    ├─ json.response pipeline
+                    └─ json.actions pipeline
 ```
 
 ### How a JSON mixin chain works

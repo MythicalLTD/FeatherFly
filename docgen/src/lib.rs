@@ -2,6 +2,7 @@ mod api;
 mod html;
 mod plugins;
 mod search;
+mod sitemap;
 mod tests;
 
 use html::PageContext;
@@ -25,6 +26,8 @@ pub fn generate_all(output: &Path, openapi: &utoipa::openapi::OpenApi) -> std::i
     generate_test_docs(&output.join("tests"))?;
     write_hub(&output.join("index.html"))?;
     search::write_index(output)?;
+    sitemap::write(output)?;
+    write_robots(output)?;
 
     fs::write(output.join(".nojekyll"), "")?;
 
@@ -36,11 +39,33 @@ pub fn generate_minimal(output: &Path) -> std::io::Result<()> {
     generate_plugin_docs(&output.join("plugins"))?;
     write_hub(&output.join("index.html"))?;
     search::write_index(output)?;
+    sitemap::write(output)?;
+    write_robots(output)?;
     fs::write(output.join(".nojekyll"), "")
 }
 
+fn write_robots(output: &Path) -> std::io::Result<()> {
+    let site = std::env::var("DOCS_SITE_URL")
+        .unwrap_or_else(|_| "https://mythicaltld.github.io/featherfly".into());
+    let site = site.trim_end_matches('/');
+    fs::write(
+        output.join("robots.txt"),
+        format!("User-agent: *\nAllow: /\nSitemap: {site}/sitemap.xml\n"),
+    )
+}
+
 fn write_hub(path: &Path) -> std::io::Result<()> {
-    html::write(path, "Home", PageContext::root("home"), &hub_body())
+    html::write_page(
+        path,
+        "Home",
+        PageContext::root("home"),
+        &html::PageMeta::new(
+            "FeatherFly documentation — web hosting daemon, HTTP API, and native plugin SDK.",
+            "index.html",
+        )
+        .with_source("Repository", ""),
+        &hub_body(),
+    )
 }
 
 fn hub_body() -> String {
@@ -49,12 +74,14 @@ fn hub_body() -> String {
 {plugin_cards}
 <h2>HTTP API</h2>
 {api_cards}
+<h2>Reference</h2>
+{ref_cards}
 <h2>Quality</h2>
 {test_card}
-<p class=\"text-xs text-zinc-500 mt-8\">Plugin API v{version} · run <code>make docs</code> to regenerate</p>",
+<p class=\"text-xs text-[#555555] mt-8\">Plugin API v{version} · {repo} · run <code>make docs</code> to regenerate</p>",
         header = html::page_header(
             "FeatherFly documentation",
-            "Daemon HTTP API and native plugin developer reference.",
+            "Web hosting daemon for FeatherPanel — HTTP API and native plugin reference.",
         ),
         plugin_cards = html::card_grid(&[
             (
@@ -70,12 +97,22 @@ fn hub_body() -> String {
             (
                 "plugins/architecture.html",
                 "Architecture",
-                "Mixin-style hook pipelines.",
+                "Config, request, route, and JSON pipelines.",
             ),
             (
-                "plugins/events/index.html",
-                "Lifecycle events",
-                "config.loaded, daemon.started, and more.",
+                "plugins/config-hooks/index.html",
+                "Config hooks",
+                "Rewrite YAML before apply.",
+            ),
+            (
+                "plugins/request-hooks/index.html",
+                "Request hooks",
+                "Intercept and middleware layers.",
+            ),
+            (
+                "plugins/routes/index.html",
+                "Plugin routes",
+                "Register HTTP endpoints.",
             ),
             (
                 "plugins/json-hooks/index.html",
@@ -83,16 +120,31 @@ fn hub_body() -> String {
                 "Modify responses and action steps.",
             ),
             (
-                "plugins/hooks-roadmap.html",
-                "Hooks roadmap",
-                "Current and planned plugin API hooks.",
+                "plugins/events/index.html",
+                "Lifecycle events",
+                "config.loaded, daemon.started, and more.",
+            ),
+            (
+                "plugins/host-api.html",
+                "Host API",
+                "HostApi, macros, return codes.",
+            ),
+            (
+                "plugins/source-tree.html",
+                "Source tree",
+                "Where to read implementation code.",
+            ),
+            (
+                "plugins/example.html",
+                "Full example",
+                "v4 plugin with every hook type.",
             ),
         ]),
         api_cards = html::card_grid(&[
             (
                 "api/index.html",
                 "HTTP API",
-                "Grouped route reference with descriptions and curl examples.",
+                "Grouped routes with curl examples and source links.",
             ),
             (
                 "api/health.html",
@@ -102,12 +154,29 @@ fn hub_body() -> String {
             (
                 "api/system.html",
                 "System",
-                "Host summary, version, and panel actions.",
+                "Host summary, version, panel actions.",
             ),
             (
                 "api/openapi.json",
                 "OpenAPI JSON",
                 "Machine-readable schema.",
+            ),
+        ]),
+        ref_cards = html::card_grid(&[
+            (
+                "plugins/macros.html",
+                "Macros",
+                "hook!, hook_config!, route!, hook_json!",
+            ),
+            (
+                "plugins/return-codes.html",
+                "Return codes",
+                "Every hook return value explained.",
+            ),
+            (
+                "plugins/hooks-roadmap.html",
+                "Hooks roadmap",
+                "All available plugin hooks.",
             ),
         ]),
         test_card = html::card_grid(&[(
@@ -116,5 +185,6 @@ fn hub_body() -> String {
             "CI test inventory and last run results.",
         )]),
         version = featherfly_plugin_sdk::metadata::plugin_api_version(),
+        repo = html::github_source("", "GitHub repository"),
     )
 }

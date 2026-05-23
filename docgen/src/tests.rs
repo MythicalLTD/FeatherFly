@@ -24,10 +24,15 @@ pub fn generate_test_docs(output: &Path) -> std::io::Result<()> {
     let inventory = collect_inventory();
     let summary = run_tests_if_requested();
 
-    html::write(
+    html::write_page(
         &output.join("index.html"),
         "Unit tests",
         PageContext::tests("tests"),
+        &html::PageMeta::new(
+            "FeatherFly unit test inventory and CI results.",
+            "tests/index.html",
+        )
+        .with_source("CI workflow", ".github/workflows/ci.yml"),
         &page_body(&inventory, &summary),
     )
 }

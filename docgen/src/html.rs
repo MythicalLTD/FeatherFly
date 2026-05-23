@@ -183,21 +183,8 @@ fn docs_base() -> String {
 }
 
 fn site_url() -> String {
-    std::env::var("DOCS_SITE_URL").unwrap_or_else(|_| "https://mythicaltld.github.io/featherfly".into())
-}
-
-pub fn write(path: &Path, title: &str, ctx: PageContext, body: &str) -> std::io::Result<()> {
-    let canonical = path
-        .strip_prefix(path.parent().and_then(|p| p.parent()).unwrap_or(Path::new("")))
-        .ok()
-        .map(|p| p.to_string_lossy().replace('\\', "/"))
-        .unwrap_or_else(|| path.file_name().unwrap().to_string_lossy().into_owned());
-
-    let meta = PageMeta::new(
-        format!("{title} — FeatherFly documentation"),
-        canonical,
-    );
-    write_page(path, title, ctx, &meta, body)
+    std::env::var("DOCS_SITE_URL")
+        .unwrap_or_else(|_| "https://mythicaltld.github.io/featherfly".into())
 }
 
 pub fn write_page(
@@ -439,8 +426,12 @@ fn breadcrumb_html(from_dir: &str, title: &str, section: Section) -> String {
     let mut parts = vec![format!(r#"<a href="{home}">Home</a>"#)];
 
     match section {
-        Section::Plugins | Section::PluginEvents | Section::PluginJsonHooks
-        | Section::PluginConfigHooks | Section::PluginRequestHooks | Section::PluginRoutes => {
+        Section::Plugins
+        | Section::PluginEvents
+        | Section::PluginJsonHooks
+        | Section::PluginConfigHooks
+        | Section::PluginRequestHooks
+        | Section::PluginRoutes => {
             let plugins = relative_href(from_dir, "plugins/index.html");
             parts.push(format!(r#"<span>/</span><a href="{plugins}">Plugins</a>"#));
         }
@@ -458,13 +449,21 @@ fn breadcrumb_html(from_dir: &str, title: &str, section: Section) -> String {
     }
 
     parts.push(format!(r#"<span>/</span><span>{title}</span>"#));
-    format!(r#"<nav class="breadcrumbs" aria-label="Breadcrumb">{}</nav>"#, parts.join(" "))
+    format!(
+        r#"<nav class="breadcrumbs" aria-label="Breadcrumb">{}</nav>"#,
+        parts.join(" ")
+    )
 }
 
 pub fn github_source(repo_path: &str, label: &str) -> String {
-    format!(
-        r#"<a href="{GITHUB_BLOB}/{repo_path}" class="source-link" target="_blank" rel="noopener">{label} ↗</a>"#
-    )
+    let url = if repo_path.is_empty() {
+        GITHUB_REPO.to_string()
+    } else if repo_path.starts_with("http") {
+        repo_path.to_string()
+    } else {
+        format!("{GITHUB_BLOB}/{repo_path}")
+    };
+    format!(r#"<a href="{url}" class="source-link" target="_blank" rel="noopener">{label} ↗</a>"#)
 }
 
 fn source_bar_html(links: &[(&'static str, &'static str)]) -> String {
@@ -483,25 +482,40 @@ fn sidebar(ctx: PageContext) -> String {
     let mut out = String::new();
 
     out.push_str(r#"<div class="sidebar-group">Start</div>"#);
-    out.push_str(&nav_link(from_dir, ctx.active, "home", "Home", "index.html", false));
+    out.push_str(&nav_link(
+        from_dir,
+        ctx.active,
+        "home",
+        "Home",
+        "index.html",
+        false,
+    ));
 
     out.push_str(r#"<div class="sidebar-group">Plugins</div>"#);
     for item in PLUGIN_TOP {
-        out.push_str(&nav_link(from_dir, ctx.active, item.id, item.label, item.path, false));
+        out.push_str(&nav_link(
+            from_dir, ctx.active, item.id, item.label, item.path, false,
+        ));
     }
     for group in PLUGIN_GROUPS {
         out.push_str(&nav_group(from_dir, ctx.active, group));
     }
     for item in PLUGIN_BOTTOM {
-        out.push_str(&nav_link(from_dir, ctx.active, item.id, item.label, item.path, false));
+        out.push_str(&nav_link(
+            from_dir, ctx.active, item.id, item.label, item.path, false,
+        ));
     }
 
     out.push_str(r#"<div class="sidebar-group">HTTP API</div>"#);
     for item in API_TOP {
-        out.push_str(&nav_link(from_dir, ctx.active, item.id, item.label, item.path, false));
+        out.push_str(&nav_link(
+            from_dir, ctx.active, item.id, item.label, item.path, false,
+        ));
     }
     for item in API_EXTRA {
-        out.push_str(&nav_link(from_dir, ctx.active, item.id, item.label, item.path, false));
+        out.push_str(&nav_link(
+            from_dir, ctx.active, item.id, item.label, item.path, false,
+        ));
     }
     for group in API_GROUPS {
         out.push_str(&nav_group(from_dir, ctx.active, group));
@@ -509,7 +523,9 @@ fn sidebar(ctx: PageContext) -> String {
 
     out.push_str(r#"<div class="sidebar-group">Reference</div>"#);
     for item in REFERENCE_LINKS {
-        out.push_str(&nav_link(from_dir, ctx.active, item.id, item.label, item.path, false));
+        out.push_str(&nav_link(
+            from_dir, ctx.active, item.id, item.label, item.path, false,
+        ));
     }
 
     out
@@ -537,7 +553,14 @@ fn nav_group(from_dir: &str, active: &str, group: &NavGroup) -> String {
         out.push_str(&nav_link(from_dir, active, o.id, o.label, o.path, false));
     }
     for child in group.children {
-        out.push_str(&nav_link(from_dir, active, child.id, child.label, child.path, true));
+        out.push_str(&nav_link(
+            from_dir,
+            active,
+            child.id,
+            child.label,
+            child.path,
+            true,
+        ));
     }
     out
 }

@@ -1,4 +1,6 @@
-use featherfly_plugin_sdk::metadata::{EVENT_DOCS, JSON_HOOK_DOCS};
+use featherfly_plugin_sdk::metadata::{
+    CONFIG_HOOK_DOCS, EVENT_DOCS, JSON_HOOK_DOCS, REQUEST_HOOK_DOCS, ROUTE_HOOK_DOCS,
+};
 use std::path::Path;
 
 #[derive(serde::Serialize)]
@@ -13,42 +15,77 @@ pub fn write_index(output: &Path) -> std::io::Result<()> {
         entry(
             "Home",
             "index.html",
-            "FeatherFly documentation hub plugins API",
+            "FeatherFly documentation hub plugins API web hosting daemon",
         ),
         entry(
             "Plugin guide",
             "plugins/index.html",
-            "plugin documentation native so hooks",
+            "plugin documentation native so hooks config request routes json",
         ),
         entry(
             "Getting started",
             "plugins/getting-started.html",
-            "build install ship cdylib cargo toml paths",
+            "build install ship cdylib cargo toml paths hello plugin",
         ),
         entry(
             "Terminology",
             "plugins/terminology.html",
-            "hooks mixin pipeline load order vocabulary",
+            "hooks mixin pipeline load order vocabulary config request route",
         ),
         entry(
             "Architecture",
             "plugins/architecture.html",
-            "mixin pipeline composition json hooks lifecycle",
+            "mixin pipeline composition json hooks lifecycle request intercept middleware",
         ),
         entry(
             "Hooks roadmap",
             "plugins/hooks-roadmap.html",
-            "planned hooks config mutate request intercept route register",
+            "hooks config mutate request intercept route register middleware inject json",
         ),
         entry(
             "Overview",
             "plugins/overview.html",
-            "lifecycle hooks load order init shutdown",
+            "lifecycle hooks load order init shutdown config mutate",
+        ),
+        entry(
+            "Config hooks",
+            "plugins/config-hooks/index.html",
+            "config mutate yaml rewrite defaults overrides",
+        ),
+        entry(
+            "config.mutate",
+            "plugins/config-hooks/mutate.html",
+            "rewrite config yaml before apply hook_config write_yaml_output",
+        ),
+        entry(
+            "Request hooks",
+            "plugins/request-hooks/index.html",
+            "request intercept middleware inject auth rate limit headers",
+        ),
+        entry(
+            "request.intercept",
+            "plugins/request-hooks/intercept.html",
+            "inbound HTTP auth short circuit write_request_response",
+        ),
+        entry(
+            "middleware.inject",
+            "plugins/request-hooks/middleware.html",
+            "inner request middleware tracing headers validation",
+        ),
+        entry(
+            "Plugin routes",
+            "plugins/routes/index.html",
+            "route register HTTP endpoint plugin API",
+        ),
+        entry(
+            "route.register",
+            "plugins/routes/register.html",
+            "register route GET POST write_route_response plugin handler",
         ),
         entry(
             "Lifecycle events",
             "plugins/events/index.html",
-            "hook PluginEvent startup shutdown config",
+            "hook PluginEvent startup shutdown config loaded",
         ),
         entry(
             "JSON hooks",
@@ -58,17 +95,32 @@ pub fn write_index(output: &Path) -> std::io::Result<()> {
         entry(
             "Host API",
             "plugins/host-api.html",
-            "HostApi register_hook register_json_hook log_info macros",
+            "HostApi register_hook register_config_hook register_route log_info",
+        ),
+        entry(
+            "Macros",
+            "plugins/macros.html",
+            "declare_plugin hook hook_config hook_request route hook_json",
+        ),
+        entry(
+            "Return codes",
+            "plugins/return-codes.html",
+            "CONFIG_MUTATE REQUEST_CONTINUE ROUTE_OK JSON_MUTATE init status",
+        ),
+        entry(
+            "Source tree",
+            "plugins/source-tree.html",
+            "repository paths daemon events middleware routes hello plugin sdk",
         ),
         entry(
             "Full example",
             "plugins/example.html",
-            "complete plugin source declare_plugin hook",
+            "complete plugin source declare_plugin v4 all hooks",
         ),
         entry(
             "HTTP API",
             "api/index.html",
-            "rest routes authentication bearer token",
+            "rest routes authentication bearer token featherpanel",
         ),
         entry(
             "Health",
@@ -88,7 +140,7 @@ pub fn write_index(output: &Path) -> std::io::Result<()> {
         entry(
             "System plugins",
             "api/system-plugins.html",
-            "loaded plugins hooks json targets",
+            "loaded plugins hooks json targets request phases routes",
         ),
         entry(
             "System update",
@@ -116,6 +168,35 @@ pub fn write_index(output: &Path) -> std::io::Result<()> {
                 "{} {} {} lifecycle event hook",
                 doc.summary, doc.when, doc.payload
             ),
+        ));
+    }
+
+    for doc in CONFIG_HOOK_DOCS {
+        entries.push(entry(
+            doc.name,
+            "plugins/config-hooks/mutate.html",
+            &format!("{} {} config yaml mutation", doc.summary, doc.when),
+        ));
+    }
+
+    for doc in REQUEST_HOOK_DOCS {
+        let slug = match doc.name {
+            "request.intercept" => "intercept",
+            "middleware.inject" => "middleware",
+            _ => "index",
+        };
+        entries.push(entry(
+            doc.name,
+            &format!("plugins/request-hooks/{slug}.html"),
+            &format!("{} {} request hook HTTP", doc.summary, doc.pipeline),
+        ));
+    }
+
+    for doc in ROUTE_HOOK_DOCS {
+        entries.push(entry(
+            doc.name,
+            "plugins/routes/register.html",
+            &format!("{} {} plugin HTTP route", doc.summary, doc.pipeline),
         ));
     }
 
