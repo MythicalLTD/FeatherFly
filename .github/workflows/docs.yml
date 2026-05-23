@@ -38,6 +38,7 @@ jobs:
         env:
           DOCS_BUILD_ID: ${{ github.sha }}
           DOCS_BASE_PATH: /featherfly/
+          DOCS_RUN_TESTS: "1"
         run: cargo run --bin generate-docs
 
       - name: Upload Pages artifact

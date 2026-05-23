@@ -1,7 +1,7 @@
 use crate::html::{self, PageContext};
 use featherfly_plugin_sdk::metadata::{
-    BUILD_AND_INSTALL, EVENT_DOCS, FULL_PLUGIN_EXAMPLE, HOST_API, JSON_HOOK_DOCS, LIFECYCLE,
-    MACROS, OVERVIEW, plugin_api_version,
+    ARCHITECTURE, BUILD_AND_INSTALL, EVENT_DOCS, FULL_PLUGIN_EXAMPLE, HOST_API, JSON_HOOK_DOCS,
+    LIFECYCLE, MACROS, OVERVIEW, PLANNED_HOOKS, TERMINOLOGY, plugin_api_version,
 };
 use std::path::Path;
 
@@ -27,6 +27,24 @@ pub fn generate_plugin_docs(output: &Path) -> std::io::Result<()> {
         "Overview",
         PageContext::plugins("overview"),
         &overview_page(),
+    )?;
+    html::write(
+        &output.join("terminology.html"),
+        "Terminology",
+        PageContext::plugins("terminology"),
+        &terminology_page(),
+    )?;
+    html::write(
+        &output.join("architecture.html"),
+        "Architecture",
+        PageContext::plugins("architecture"),
+        &architecture_page(),
+    )?;
+    html::write(
+        &output.join("hooks-roadmap.html"),
+        "Hooks roadmap",
+        PageContext::plugins("hooks-roadmap"),
+        &hooks_roadmap_page(),
     )?;
     html::write(
         &output.join("events/index.html"),
@@ -101,9 +119,7 @@ fn index_page() -> String {
     format!(
         "{header}
 <p>Plugin API version <code>{version}</code>.</p>
-{cards}
-<h2>Quick links</h2>
-{links}",
+{cards}",
         header = html::page_header(
             "Plugin documentation",
             "Build native .so plugins that extend FeatherFly at runtime.",
@@ -116,9 +132,24 @@ fn index_page() -> String {
                 "Project setup, build commands, install paths.",
             ),
             (
+                "terminology.html",
+                "Terminology",
+                "Hooks, mixins, pipeline, load order — start here.",
+            ),
+            (
+                "architecture.html",
+                "Architecture",
+                "Mixin-style pipelines and hook composition.",
+            ),
+            (
+                "hooks-roadmap.html",
+                "Hooks roadmap",
+                "Available hooks and planned API extensions.",
+            ),
+            (
                 "overview.html",
                 "Overview",
-                "How plugins load, lifecycle, hook systems.",
+                "How plugins load and lifecycle order.",
             ),
             (
                 "events/index.html",
@@ -141,11 +172,57 @@ fn index_page() -> String {
                 "Complete plugin with events and JSON hooks.",
             ),
         ]),
-        links = html::card_grid(&[(
-            "../api/index.html",
-            "HTTP API (Swagger)",
-            "Interactive explorer for daemon routes.",
-        )]),
+    )
+}
+
+fn terminology_page() -> String {
+    format!(
+        "{header}
+{body}",
+        header = html::page_header(
+            "Terminology",
+            "Shared vocabulary for FeatherFly plugin development.",
+        ),
+        body = html::text_block(TERMINOLOGY),
+    )
+}
+
+fn architecture_page() -> String {
+    format!(
+        "{header}
+{body}
+<p>See also <a href=\"hooks-roadmap.html\">hooks roadmap</a> for planned mixin targets.</p>",
+        header = html::page_header(
+            "Architecture",
+            "How mixin-style hook pipelines compose across plugins.",
+        ),
+        body = html::text_block(ARCHITECTURE),
+    )
+}
+
+fn hooks_roadmap_page() -> String {
+    let mut rows = String::new();
+    for hook in PLANNED_HOOKS {
+        rows.push_str(&format!(
+            "<tr><td><code>{name}</code></td><td>{status}</td><td>{summary}</td><td>{role}</td></tr>",
+            name = hook.name,
+            status = hook.status,
+            summary = hook.summary,
+            role = hook.mixin_role,
+        ));
+    }
+
+    format!(
+        "{header}
+<p>Plugin API v{version}. Status <code>available</code> ships today; <code>planned</code> and <code>research</code> require a future API version bump.</p>
+<table><thead><tr><th>Hook</th><th>Status</th><th>Summary</th><th>Mixin role</th></tr></thead><tbody>{rows}</tbody></table>
+<p>Current hooks: <a href=\"events/index.html\">lifecycle events</a>, <a href=\"json-hooks/index.html\">JSON mutation</a>.</p>",
+        header = html::page_header(
+            "Hooks roadmap",
+            "What plugins can do today and what is coming next.",
+        ),
+        version = plugin_api_version(),
+        rows = rows,
     )
 }
 

@@ -10,68 +10,113 @@ struct SearchEntry {
 
 pub fn write_index(output: &Path) -> std::io::Result<()> {
     let mut entries = vec![
-        SearchEntry {
-            title: "Home".into(),
-            url: "index.html".into(),
-            text: "FeatherFly documentation hub plugins API".into(),
-        },
-        SearchEntry {
-            title: "Plugin guide".into(),
-            url: "plugins/index.html".into(),
-            text: "plugin documentation native so hooks".into(),
-        },
-        SearchEntry {
-            title: "Getting started".into(),
-            url: "plugins/getting-started.html".into(),
-            text: "build install ship cdylib cargo toml paths".into(),
-        },
-        SearchEntry {
-            title: "Overview".into(),
-            url: "plugins/overview.html".into(),
-            text: "lifecycle hooks load order init shutdown".into(),
-        },
-        SearchEntry {
-            title: "Lifecycle events".into(),
-            url: "plugins/events/index.html".into(),
-            text: "hook PluginEvent startup shutdown config".into(),
-        },
-        SearchEntry {
-            title: "JSON hooks".into(),
-            url: "plugins/json-hooks/index.html".into(),
-            text: "json mutation response body actions hook_json".into(),
-        },
-        SearchEntry {
-            title: "Host API".into(),
-            url: "plugins/host-api.html".into(),
-            text: "HostApi register_hook register_json_hook log_info macros".into(),
-        },
-        SearchEntry {
-            title: "Full example".into(),
-            url: "plugins/example.html".into(),
-            text: "complete plugin source declare_plugin hook".into(),
-        },
-        SearchEntry {
-            title: "Swagger UI".into(),
-            url: "api/index.html".into(),
-            text: "openapi interactive http api explorer".into(),
-        },
-        SearchEntry {
-            title: "Endpoints".into(),
-            url: "api/endpoints.html".into(),
-            text: "curl routes GET POST auth bearer".into(),
-        },
+        entry(
+            "Home",
+            "index.html",
+            "FeatherFly documentation hub plugins API",
+        ),
+        entry(
+            "Plugin guide",
+            "plugins/index.html",
+            "plugin documentation native so hooks",
+        ),
+        entry(
+            "Getting started",
+            "plugins/getting-started.html",
+            "build install ship cdylib cargo toml paths",
+        ),
+        entry(
+            "Terminology",
+            "plugins/terminology.html",
+            "hooks mixin pipeline load order vocabulary",
+        ),
+        entry(
+            "Architecture",
+            "plugins/architecture.html",
+            "mixin pipeline composition json hooks lifecycle",
+        ),
+        entry(
+            "Hooks roadmap",
+            "plugins/hooks-roadmap.html",
+            "planned hooks config mutate request intercept route register",
+        ),
+        entry(
+            "Overview",
+            "plugins/overview.html",
+            "lifecycle hooks load order init shutdown",
+        ),
+        entry(
+            "Lifecycle events",
+            "plugins/events/index.html",
+            "hook PluginEvent startup shutdown config",
+        ),
+        entry(
+            "JSON hooks",
+            "plugins/json-hooks/index.html",
+            "json mutation response body actions hook_json",
+        ),
+        entry(
+            "Host API",
+            "plugins/host-api.html",
+            "HostApi register_hook register_json_hook log_info macros",
+        ),
+        entry(
+            "Full example",
+            "plugins/example.html",
+            "complete plugin source declare_plugin hook",
+        ),
+        entry(
+            "HTTP API",
+            "api/index.html",
+            "rest routes authentication bearer token",
+        ),
+        entry(
+            "Health",
+            "api/health.html",
+            "liveness probe unauthenticated uptime",
+        ),
+        entry(
+            "System API",
+            "api/system.html",
+            "host architecture cpu kernel version actions",
+        ),
+        entry(
+            "System overview",
+            "api/system-overview.html",
+            "memory cpu metrics dashboard",
+        ),
+        entry(
+            "System plugins",
+            "api/system-plugins.html",
+            "loaded plugins hooks json targets",
+        ),
+        entry(
+            "System update",
+            "api/system-update.html",
+            "github release check upgrade channel",
+        ),
+        entry(
+            "System upgrade",
+            "api/system-upgrade.html",
+            "download binary sha256 restart",
+        ),
+        entry(
+            "Unit tests",
+            "tests/index.html",
+            "cargo test ci inventory passed failed",
+        ),
     ];
 
     for doc in EVENT_DOCS {
         let slug = doc.name.replace('.', "-");
-        entries.push(SearchEntry {
-            title: doc.name.to_string(),
-            url: format!("plugins/events/{slug}.html"),
-            text: format!(
+        entries.push(entry(
+            doc.name,
+            &format!("plugins/events/{slug}.html"),
+            &format!(
                 "{} {} {} lifecycle event hook",
                 doc.summary, doc.when, doc.payload
             ),
-        });
+        ));
     }
 
     for doc in JSON_HOOK_DOCS {
@@ -80,16 +125,24 @@ pub fn write_index(output: &Path) -> std::io::Result<()> {
             "json.actions" => "response-actions",
             _ => "index",
         };
-        entries.push(SearchEntry {
-            title: doc.name.to_string(),
-            url: format!("plugins/json-hooks/{slug}.html"),
-            text: format!(
+        entries.push(entry(
+            doc.name,
+            &format!("plugins/json-hooks/{slug}.html"),
+            &format!(
                 "{} {} {} json hook mutation",
                 doc.summary, doc.input, doc.route_matching
             ),
-        });
+        ));
     }
 
     let json = serde_json::to_string_pretty(&entries)?;
     std::fs::write(output.join("search-index.json"), json)
+}
+
+fn entry(title: &str, url: &str, text: &str) -> SearchEntry {
+    SearchEntry {
+        title: title.into(),
+        url: url.into(),
+        text: text.into(),
+    }
 }

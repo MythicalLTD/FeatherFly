@@ -7,6 +7,7 @@ pub enum Section {
     PluginEvents,
     PluginJsonHooks,
     Api,
+    Tests,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -44,6 +45,13 @@ impl PageContext {
         }
     }
 
+    pub const fn tests(active: &'static str) -> Self {
+        Self {
+            section: Section::Tests,
+            active,
+        }
+    }
+
     pub const fn api(active: &'static str) -> Self {
         Self {
             section: Section::Api,
@@ -70,6 +78,7 @@ fn section_dir(section: Section) -> &'static str {
         Section::PluginEvents => "plugins/events/",
         Section::PluginJsonHooks => "plugins/json-hooks/",
         Section::Api => "api/",
+        Section::Tests => "tests/",
     }
 }
 
@@ -332,11 +341,29 @@ fn sidebar(ctx: PageContext) -> String {
     }
 
     out.push_str(r#"<div class="sidebar-group">HTTP API</div>"#);
-    for item in API_NAV {
+    for item in API_TOP {
         out.push_str(&nav_link(
             from_dir, ctx.active, item.id, item.label, item.path, false,
         ));
     }
+    for item in API_EXTRA {
+        out.push_str(&nav_link(
+            from_dir, ctx.active, item.id, item.label, item.path, false,
+        ));
+    }
+    for group in API_GROUPS {
+        out.push_str(&nav_group(from_dir, ctx.active, group));
+    }
+
+    out.push_str(r#"<div class="sidebar-group">Quality</div>"#);
+    out.push_str(&nav_link(
+        from_dir,
+        ctx.active,
+        "tests",
+        "Unit tests",
+        "tests/index.html",
+        false,
+    ));
 
     out
 }
@@ -390,6 +417,21 @@ const PLUGIN_TOP: &[NavItem] = &[
         id: "overview",
         label: "Overview",
         path: "plugins/overview.html",
+    },
+    NavItem {
+        id: "terminology",
+        label: "Terminology",
+        path: "plugins/terminology.html",
+    },
+    NavItem {
+        id: "architecture",
+        label: "Architecture",
+        path: "plugins/architecture.html",
+    },
+    NavItem {
+        id: "hooks-roadmap",
+        label: "Hooks roadmap",
+        path: "plugins/hooks-roadmap.html",
     },
 ];
 
@@ -462,18 +504,47 @@ const PLUGIN_BOTTOM: &[NavItem] = &[
     },
 ];
 
-const API_NAV: &[NavItem] = &[
-    NavItem {
-        id: "api-swagger",
-        label: "Swagger UI",
-        path: "api/index.html",
-    },
-    NavItem {
-        id: "api-endpoints",
-        label: "Endpoints",
-        path: "api/endpoints.html",
-    },
-];
+const API_TOP: &[NavItem] = &[NavItem {
+    id: "api-overview",
+    label: "HTTP API",
+    path: "api/index.html",
+}];
+
+const API_EXTRA: &[NavItem] = &[NavItem {
+    id: "api-health",
+    label: "Health",
+    path: "api/health.html",
+}];
+
+const API_GROUPS: &[NavGroup] = &[NavGroup {
+    overview: Some(NavItem {
+        id: "api-system",
+        label: "System",
+        path: "api/system.html",
+    }),
+    children: &[
+        NavItem {
+            id: "api-system-overview",
+            label: "Overview metrics",
+            path: "api/system-overview.html",
+        },
+        NavItem {
+            id: "api-system-plugins",
+            label: "Plugins",
+            path: "api/system-plugins.html",
+        },
+        NavItem {
+            id: "api-system-update",
+            label: "Updates",
+            path: "api/system-update.html",
+        },
+        NavItem {
+            id: "api-system-upgrade",
+            label: "Upgrade",
+            path: "api/system-upgrade.html",
+        },
+    ],
+}];
 
 pub fn page_header(title: &str, subtitle: &str) -> String {
     format!("<h1>{title}</h1><p class=\"lead\">{subtitle}</p>")
@@ -546,23 +617,6 @@ pub fn use_cases_list(items: &[&str]) -> String {
     }
     out.push_str("</ul>");
     out
-}
-
-pub fn endpoint_block(
-    method: &str,
-    path: &str,
-    operation_id: &str,
-    summary: &str,
-    auth: &str,
-    example: &str,
-) -> String {
-    details_block(
-        &format!("{method} {path}"),
-        &format!(
-            "<p><strong>{operation_id}</strong> — {summary}</p><p>Auth: {auth}</p>{}",
-            code_block(example),
-        ),
-    )
 }
 
 pub fn event_slug(name: &str) -> String {

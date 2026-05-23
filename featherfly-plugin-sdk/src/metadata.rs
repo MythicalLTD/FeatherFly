@@ -331,6 +331,132 @@ pub const HTTP_METHODS: &[(&str, u32)] = &[
     ("DELETE", 5),
 ];
 
+#[derive(Debug, Clone, Copy)]
+pub struct PlannedHookDoc {
+    pub name: &'static str,
+    pub status: &'static str,
+    pub summary: &'static str,
+    pub mixin_role: &'static str,
+}
+
+pub const TERMINOLOGY: &str = r#"FeatherFly plugin vocabulary — read this before writing hooks.
+
+| Term | Meaning |
+|------|---------|
+| **Plugin** | A native `.so` shared library loaded by the daemon at startup. |
+| **Host** | The running FeatherFly daemon. Passes `HostApi` to your `init`. |
+| **Hook** | A callback your plugin registers during `init`. |
+| **Event** | A lifecycle hook fired at a fixed point (startup, shutdown, config load). |
+| **JSON mutation hook** | A hook that receives JSON bytes, may rewrite them, and returns output for HTTP responses. |
+| **Target** | What a hook listens to — an event name (`daemon.started`) or JSON target (`json.response`). |
+| **Pipeline** | Ordered chain of hooks for one target. Each hook sees the previous hook's output. |
+| **Mixin** | FeatherFly's model for JSON hooks: multiple plugins stack transformations on the same response, like Minecraft mixins layering behavior. |
+| **Load order** | Alphabetical by `.so` filename in the plugins directory. Determines pipeline order. |
+| **Cancel** | Lifecycle hooks may call `HookResult::cancel()` to skip remaining handlers for that event. |
+| **API version** | Integer in `PluginEntry`. Must match `FEATHERFLY_PLUGIN_API_VERSION` or the plugin is skipped. |
+| **Action** | A panel step object `{ id, label, step }` returned in API responses for follow-up work. |"#;
+
+pub const ARCHITECTURE: &str = r#"## Mixin-style hook pipeline
+
+FeatherFly plugins extend the daemon **without recompiling it**, similar to how Minecraft mixins inject behavior into existing code paths.
+
+```
+Daemon startup
+    │
+    ├─ config.loaded ──► [plugin A] ──► [plugin B] ──► ...
+    │
+    ├─ load .so files (alphabetical)
+    │       └─ init(host) ── register hooks
+    │
+    ├─ plugin.loaded (per plugin)
+    │
+    └─ HTTP listening
+            │
+            └─ JSON response for /api/system/*
+                    │
+                    ├─ json.response pipeline ──► body object rewritten per plugin
+                    └─ json.actions pipeline  ──► actions[] rewritten per plugin
+```
+
+### How a JSON mixin chain works
+
+1. FeatherFly builds the base JSON response for a route.
+2. Each plugin registered for `json.response` on that route prefix runs **in load order**.
+3. Plugin 1 receives the original JSON, may mutate it, writes output.
+4. Plugin 2 receives plugin 1's output, may mutate again.
+5. After all body hooks, `json.actions` hooks run on the `actions` array only.
+6. The final JSON is sent to the client.
+
+This is intentionally **composable**: small plugins each do one job (add a field, inject a step, strip sensitive data) instead of one monolithic plugin patching everything.
+
+### Lifecycle vs mutation
+
+| Hook type | When it runs | Can cancel others? | Typical use |
+|-----------|--------------|--------------------|-------------|
+| Lifecycle event | Fixed daemon milestones | Yes (same event only) | Startup banners, config validation |
+| JSON mutation | Every matching HTTP JSON response | No — always runs in pipeline | Response fields, panel actions |
+
+### Versioning
+
+Plugin API **v3** (current) exposes lifecycle events + JSON mutation. Future hooks (see roadmap) will bump the API version so old plugins keep loading safely when new hook types appear."#;
+
+pub const PLANNED_HOOKS: &[PlannedHookDoc] = &[
+    PlannedHookDoc {
+        name: "config.loaded",
+        status: "available",
+        summary: "Read-only notification when config YAML is parsed.",
+        mixin_role: "Observe before plugins load; validate or log config.",
+    },
+    PlannedHookDoc {
+        name: "plugin.loaded",
+        status: "available",
+        summary: "Fires after each plugin finishes init.",
+        mixin_role: "Coordinate between plugins; detect dependencies.",
+    },
+    PlannedHookDoc {
+        name: "daemon.starting / started / stopping",
+        status: "available",
+        summary: "Startup and shutdown lifecycle markers.",
+        mixin_role: "Warm caches, bind integrations, graceful teardown.",
+    },
+    PlannedHookDoc {
+        name: "json.response",
+        status: "available",
+        summary: "Mutate full JSON response objects.",
+        mixin_role: "Mixin layer on response body — add/remove/rename fields.",
+    },
+    PlannedHookDoc {
+        name: "json.actions",
+        status: "available",
+        summary: "Mutate the top-level actions array.",
+        mixin_role: "Mixin layer on panel wizard steps.",
+    },
+    PlannedHookDoc {
+        name: "config.mutate",
+        status: "planned",
+        summary: "Rewrite config YAML bytes before FeatherFly applies settings.",
+        mixin_role: "Mixin on config load — inject defaults, strip keys, env-specific overrides.",
+    },
+    PlannedHookDoc {
+        name: "request.intercept",
+        status: "planned",
+        summary: "Run before an HTTP handler; inspect method, path, headers.",
+        mixin_role: "Mixin on inbound requests — auth plugins, rate limits, audit logging.",
+    },
+    PlannedHookDoc {
+        name: "route.register",
+        status: "research",
+        summary: "Let plugins expose new HTTP routes through the daemon router.",
+        mixin_role: "Extend the API surface without forking FeatherFly.",
+    },
+    PlannedHookDoc {
+        name: "middleware.inject",
+        status: "research",
+        summary: "Insert Axum middleware layers from plugins.",
+        mixin_role: "Cross-cutting concerns (tracing, CORS overrides) as plugins.",
+    },
+];
+
 pub fn plugin_api_version() -> u32 {
     FEATHERFLY_PLUGIN_API_VERSION
 }

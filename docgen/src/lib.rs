@@ -2,6 +2,7 @@ mod api;
 mod html;
 mod plugins;
 mod search;
+mod tests;
 
 use html::PageContext;
 use std::fs;
@@ -9,6 +10,7 @@ use std::path::{Path, PathBuf};
 
 pub use api::generate_api_docs;
 pub use plugins::generate_plugin_docs;
+pub use tests::generate_test_docs;
 
 pub fn default_output_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../docs")
@@ -20,6 +22,7 @@ pub fn generate_all(output: &Path, openapi: &utoipa::openapi::OpenApi) -> std::i
 
     generate_plugin_docs(&output.join("plugins"))?;
     generate_api_docs(&output.join("api"), openapi)?;
+    generate_test_docs(&output.join("tests"))?;
     write_hub(&output.join("index.html"))?;
     search::write_index(output)?;
 
@@ -46,6 +49,8 @@ fn hub_body() -> String {
 {plugin_cards}
 <h2>HTTP API</h2>
 {api_cards}
+<h2>Quality</h2>
+{test_card}
 <p class=\"text-xs text-zinc-500 mt-8\">Plugin API v{version} · run <code>make docs</code> to regenerate</p>",
         header = html::page_header(
             "FeatherFly documentation",
@@ -53,14 +58,19 @@ fn hub_body() -> String {
         ),
         plugin_cards = html::card_grid(&[
             (
-                "plugins/index.html",
-                "Plugin guide",
-                "Build and extend FeatherFly with native .so plugins.",
-            ),
-            (
                 "plugins/getting-started.html",
                 "Getting started",
                 "Setup, build, install — start here.",
+            ),
+            (
+                "plugins/terminology.html",
+                "Terminology",
+                "Hooks, mixins, pipeline vocabulary.",
+            ),
+            (
+                "plugins/architecture.html",
+                "Architecture",
+                "Mixin-style hook pipelines.",
             ),
             (
                 "plugins/events/index.html",
@@ -73,21 +83,26 @@ fn hub_body() -> String {
                 "Modify responses and action steps.",
             ),
             (
-                "plugins/example.html",
-                "Example plugin",
-                "Complete source with events and JSON hooks.",
+                "plugins/hooks-roadmap.html",
+                "Hooks roadmap",
+                "Current and planned plugin API hooks.",
             ),
         ]),
         api_cards = html::card_grid(&[
             (
                 "api/index.html",
-                "Swagger UI",
-                "Interactive API explorer.",
+                "HTTP API",
+                "Grouped route reference with descriptions and curl examples.",
             ),
             (
-                "api/endpoints.html",
-                "Endpoints",
-                "curl examples for every route.",
+                "api/health.html",
+                "Health",
+                "Unauthenticated liveness probe.",
+            ),
+            (
+                "api/system.html",
+                "System",
+                "Host summary, version, and panel actions.",
             ),
             (
                 "api/openapi.json",
@@ -95,6 +110,11 @@ fn hub_body() -> String {
                 "Machine-readable schema.",
             ),
         ]),
+        test_card = html::card_grid(&[(
+            "tests/index.html",
+            "Unit tests",
+            "CI test inventory and last run results.",
+        )]),
         version = featherfly_plugin_sdk::metadata::plugin_api_version(),
     )
 }

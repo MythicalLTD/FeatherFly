@@ -1,6 +1,117 @@
 use crate::html::{self, PageContext};
 use std::path::Path;
 
+pub struct RouteDoc {
+    pub method: &'static str,
+    pub path: &'static str,
+    pub operation_id: &'static str,
+    pub title: &'static str,
+    pub description: &'static str,
+    pub auth: &'static str,
+    pub response: &'static str,
+}
+
+pub struct ApiGroup {
+    pub id: &'static str,
+    pub title: &'static str,
+    pub summary: &'static str,
+    pub slug: &'static str,
+    pub routes: &'static [RouteDoc],
+}
+
+pub const GROUPS: &[ApiGroup] = &[
+    ApiGroup {
+        id: "api-health",
+        title: "Health",
+        summary: "Unauthenticated liveness probe for load balancers and panels.",
+        slug: "health",
+        routes: &[RouteDoc {
+            method: "GET",
+            path: "/health",
+            operation_id: "get_health",
+            title: "Health check",
+            description: "Returns daemon status, service name, and build version. No authentication. Use for uptime monitors and readiness probes.",
+            auth: "None",
+            response: r#"{"status":"ok","service":"featherfly","version":"0.1.0 (abc1234)"}"#,
+        }],
+    },
+    ApiGroup {
+        id: "api-system",
+        title: "System",
+        summary: "Core system information exposed to the FeatherPanel.",
+        slug: "system",
+        routes: &[RouteDoc {
+            method: "GET",
+            path: "/api/system",
+            operation_id: "get_system",
+            title: "System summary",
+            description: "High-level host facts: architecture, CPU count, kernel, OS, daemon version. Includes an `actions` array the panel uses for follow-up steps (overview, update check, plugins, diagnostics).",
+            auth: "Bearer token",
+            response: r#"{"architecture":"x86_64","cpu_count":4,"kernel_version":"...","os":"linux","version":"0.1.0","actions":[...]}"#,
+        }],
+    },
+    ApiGroup {
+        id: "api-system-overview",
+        title: "System overview",
+        summary: "Detailed CPU and memory metrics for dashboards.",
+        slug: "system-overview",
+        routes: &[RouteDoc {
+            method: "GET",
+            path: "/api/system/overview",
+            operation_id: "get_system_overview",
+            title: "System overview",
+            description: "Live CPU brand/frequency, memory totals, process RSS, container detection, and local time. Heavier than `/api/system` — use when the panel needs charts.",
+            auth: "Bearer token",
+            response: r#"{"version":"0.1.0","local_time":"...","container_type":"None","cpu":{...},"memory":{...}}"#,
+        }],
+    },
+    ApiGroup {
+        id: "api-system-plugins",
+        title: "Plugins",
+        summary: "Inspect loaded plugins and available hook targets.",
+        slug: "system-plugins",
+        routes: &[RouteDoc {
+            method: "GET",
+            path: "/api/system/plugins",
+            operation_id: "get_system_plugins",
+            title: "List plugins",
+            description: "Lists every loaded `.so` plugin with name, version, hook count, and path. Also returns all lifecycle event names and JSON mutation targets from the SDK — useful for panel diagnostics and plugin discovery.",
+            auth: "Bearer token",
+            response: r#"{"enabled":true,"directory":"/var/lib/featherfly/plugins","hooks":3,"events":["config.loaded",...],"json_targets":["json.response","json.actions"],"plugins":[...]}"#,
+        }],
+    },
+    ApiGroup {
+        id: "api-system-update",
+        title: "Updates",
+        summary: "Check GitHub for newer FeatherFly builds.",
+        slug: "system-update",
+        routes: &[RouteDoc {
+            method: "GET",
+            path: "/api/system/update",
+            operation_id: "get_system_update",
+            title: "Check for updates",
+            description: "Compares the running version against GitHub releases (stable or nightly channel from config). Returns whether an update exists, latest version string, and download URL.",
+            auth: "Bearer token",
+            response: r#"{"update_available":false,"current_version":"0.1.0","latest_version":"0.1.0","url":null}"#,
+        }],
+    },
+    ApiGroup {
+        id: "api-system-upgrade",
+        title: "Upgrade",
+        summary: "Remote binary upgrade initiated by the panel.",
+        slug: "system-upgrade",
+        routes: &[RouteDoc {
+            method: "POST",
+            path: "/api/system/upgrade",
+            operation_id: "post_system_upgrade",
+            title: "Apply upgrade",
+            description: "Downloads a replacement binary from `url`, verifies SHA-256, replaces the running executable, and spawns a restart command. Rejected in containerized environments. Returns 202 Accepted when the background upgrade task starts.",
+            auth: "Bearer token",
+            response: r#"{"applied":true}"#,
+        }],
+    },
+];
+
 pub fn generate_api_docs(output: &Path, openapi: &utoipa::openapi::OpenApi) -> std::io::Result<()> {
     std::fs::create_dir_all(output)?;
 
@@ -10,101 +121,99 @@ pub fn generate_api_docs(output: &Path, openapi: &utoipa::openapi::OpenApi) -> s
     html::write(
         &output.join("index.html"),
         "HTTP API",
-        PageContext::api("api-swagger"),
-        &swagger_page(),
+        PageContext::api("api-overview"),
+        &overview_page(openapi),
     )?;
 
-    html::write(
-        &output.join("endpoints.html"),
-        "Endpoints",
-        PageContext::api("api-endpoints"),
-        &endpoints_page(openapi),
-    )?;
+    for group in GROUPS {
+        html::write(
+            &output.join(format!("{}.html", group.slug)),
+            group.title,
+            PageContext::api(group.id),
+            &group_page(group),
+        )?;
+    }
+
+    let _ = std::fs::remove_file(output.join("endpoints.html"));
 
     Ok(())
 }
 
-fn swagger_page() -> String {
+fn overview_page(openapi: &utoipa::openapi::OpenApi) -> String {
+    let mut cards = String::from(r#"<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">"#);
+    for group in GROUPS {
+        cards.push_str(&format!(
+            r#"<a href="{}.html" class="doc-card"><strong class="block mb-1 text-zinc-900 dark:text-zinc-100">{title}</strong><span class="text-sm text-zinc-600 dark:text-zinc-400">{summary}</span></a>"#,
+            group.slug, title = group.title, summary = group.summary,
+        ));
+    }
+    cards.push_str("</div>");
+
     format!(
-        r##"{title}
-<link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css">
-<div class="border border-zinc-300 dark:border-zinc-700 rounded my-4 -mx-4 sm:mx-0">
-  <div id="swagger-ui"></div>
-</div>
-<script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"></script>
-<script>
-window.onload = () => {{
-  SwaggerUIBundle({{
-    url: "openapi.json",
-    dom_id: "#swagger-ui",
-    deepLinking: true,
-    persistAuthorization: true,
-    presets: [SwaggerUIBundle.presets.apis],
-    layout: "BaseLayout",
-  }});
-}};
-</script>"##,
-        title = html::page_header("HTTP API", "Interactive OpenAPI documentation."),
+        "{header}
+<p>FeatherFly exposes a JSON HTTP API consumed by FeatherPanel. OpenAPI <code>{version}</code> · <a href=\"openapi.json\">Download JSON</a>.</p>
+<h2>Authentication</h2>
+<p>All routes except <code>/health</code> require <code>Authorization: Bearer &lt;token&gt;</code> matching <code>api.token</code> in config.</p>
+<h2>Response shape</h2>
+<p>Successful responses wrap data in the standard envelope. JSON mutation hooks (plugins) run on the inner object before it is sent.</p>
+<h2>Route groups</h2>
+{cards}
+<h2>Actions</h2>
+<p>Many routes include an <code>actions</code> array — panel wizard steps. Plugins can inject or remove steps via <code>json.actions</code> hooks. See <a href=\"../plugins/json-hooks/index.html\">JSON hooks</a>.</p>",
+        header = html::page_header(
+            "HTTP API",
+            "REST endpoints for panels, automation, and diagnostics.",
+        ),
+        version = openapi.info.version,
+        cards = cards,
     )
 }
 
-fn endpoints_page(openapi: &utoipa::openapi::OpenApi) -> String {
-    let mut sections = String::new();
-
-    for (path, item) in &openapi.paths.paths {
-        for (method, operation) in operations(item) {
-            let Some(operation) = operation else { continue };
-            let summary = operation.summary.as_deref().unwrap_or("—");
-            let operation_id = operation.operation_id.as_deref().unwrap_or("—");
-            let secured = operation
-                .security
-                .as_ref()
-                .is_some_and(|items| !items.is_empty());
-            let auth = if secured {
-                "Bearer token required"
-            } else {
-                "No auth"
-            };
-
-            sections.push_str(&html::endpoint_block(
-                method,
-                path,
-                operation_id,
-                summary,
-                auth,
-                &example_for(path, method, secured),
-            ));
-        }
+fn group_page(group: &ApiGroup) -> String {
+    let mut routes = String::new();
+    for route in group.routes {
+        routes.push_str(&route_section(route));
     }
 
     format!(
-        "{title}
-<p>OpenAPI <code>{version}</code> · <a href=\"openapi.json\">Download JSON</a></p>
-{sections}",
-        title = html::page_header("Endpoints", "All routes with curl examples."),
-        version = openapi.info.version,
-        sections = sections,
+        "{header}
+<p>{summary}</p>
+{routes}
+<p><a href=\"index.html\">← HTTP API overview</a></p>",
+        header = html::page_header(group.title, group.summary),
+        summary = group.summary,
+        routes = routes,
     )
 }
 
-fn operations(
-    item: &utoipa::openapi::path::PathItem,
-) -> [(&'static str, Option<&utoipa::openapi::path::Operation>); 5] {
-    [
-        ("GET", item.get.as_ref()),
-        ("POST", item.post.as_ref()),
-        ("PUT", item.put.as_ref()),
-        ("PATCH", item.patch.as_ref()),
-        ("DELETE", item.delete.as_ref()),
-    ]
+fn route_section(route: &RouteDoc) -> String {
+    format!(
+        "<h2>{title} — <code>{method} {path}</code></h2>
+{meta}
+<p>{description}</p>
+<h3>Example response</h3>
+<pre><code>{response}</code></pre>
+<h3>curl</h3>
+<pre><code>{curl}</code></pre>",
+        method = route.method,
+        path = route.path,
+        title = route.title,
+        meta = html::meta_grid(&[("Operation", route.operation_id), ("Auth", route.auth),]),
+        description = route.description,
+        response = html::html_escape(route.response),
+        curl = html::html_escape(&curl_example(route)),
+    )
 }
 
-fn example_for(path: &str, method: &str, secured: bool) -> String {
-    let mut lines = vec![format!("curl -X {method} 'http://127.0.0.1:8080{path}'")];
-    if secured {
+fn curl_example(route: &RouteDoc) -> String {
+    let mut lines = vec![format!(
+        "curl -X {} 'http://127.0.0.1:8080{}'",
+        route.method, route.path
+    )];
+    if route.auth.contains("Bearer") {
         lines.push("-H 'Authorization: Bearer YOUR_TOKEN' \\".to_string());
     }
-    if method == "POST" && path.contains("/upgrade") {
+    if route.method == "POST" && route.path.contains("/upgrade") {
         lines.push("-H 'Content-Type: application/json' \\".to_string());
         lines.push(
             "-d '{\"url\":\"https://example.com/featherfly\",\"sha256\":\"...\",\"restart_command\":\"systemctl\",\"restart_command_args\":[\"restart\",\"featherfly\"]}'".to_string(),
