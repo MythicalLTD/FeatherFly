@@ -1,4 +1,4 @@
-use crate::html;
+use crate::html::{self, Section};
 use std::path::Path;
 
 pub fn generate_api_docs(output: &Path, openapi: &utoipa::openapi::OpenApi) -> std::io::Result<()> {
@@ -9,13 +9,15 @@ pub fn generate_api_docs(output: &Path, openapi: &utoipa::openapi::OpenApi) -> s
 
     html::write(
         &output.join("index.html"),
-        "FeatherFly API",
+        "HTTP API",
+        Section::Api,
         &swagger_page(),
     )?;
 
     html::write(
         &output.join("endpoints.html"),
-        "API Endpoints",
+        "Endpoints",
+        Section::Api,
         &endpoints_page(openapi),
     )?;
 
@@ -24,25 +26,25 @@ pub fn generate_api_docs(output: &Path, openapi: &utoipa::openapi::OpenApi) -> s
 
 fn swagger_page() -> String {
     format!(
-        "{nav}
-<h1>HTTP API</h1>
-<p class=\"lead\">Interactive Swagger UI backed by the auto-generated OpenAPI spec from utoipa route annotations.</p>
-<link rel=\"stylesheet\" href=\"https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css\">
-<div id=\"swagger-ui\"></div>
-<script src=\"https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js\"></script>
+        r##"{title}
+<link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css">
+<div class="border border-zinc-300 dark:border-zinc-700 rounded my-4">
+  <div id="swagger-ui"></div>
+</div>
+<script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"></script>
 <script>
 window.onload = () => {{
   SwaggerUIBundle({{
-    url: \"openapi.json\",
-    dom_id: \"#swagger-ui\",
+    url: "openapi.json",
+    dom_id: "#swagger-ui",
     deepLinking: true,
     persistAuthorization: true,
     presets: [SwaggerUIBundle.presets.apis],
-    layout: \"BaseLayout\",
+    layout: "BaseLayout",
   }});
 }};
-</script>",
-        nav = html::nav_api(),
+</script>"##,
+        title = html::page_title("HTTP API", "Interactive OpenAPI documentation."),
     )
 }
 
@@ -64,24 +66,22 @@ fn endpoints_page(openapi: &utoipa::openapi::OpenApi) -> String {
                 "No auth"
             };
 
-            let example = example_for(path, method, secured);
-            sections.push_str(&format!(
-                r#"<div class="endpoint"><span class="method">{method}</span> <code>{path}</code>
-<h3>{operation_id}</h3>
-<p>{summary}</p>
-<p><strong>Auth:</strong> {auth}</p>
-<h4>Example</h4>
-<pre><code>{example}</code></pre>
-</div>"#,
+            sections.push_str(&html::endpoint_block(
+                method,
+                path,
+                operation_id,
+                summary,
+                auth,
+                &example_for(path, method, secured),
             ));
         }
     }
 
     format!(
-        "{nav}<h1>Endpoint Reference</h1>
-<p class=\"lead\">Generated from the same OpenAPI document served at <a href=\"openapi.json\">openapi.json</a>. Version <code>{version}</code>.</p>
+        "{title}
+<p>OpenAPI version <code>{version}</code>. <a href=\"openapi.json\">Download JSON</a>.</p>
 {sections}",
-        nav = html::nav_api(),
+        title = html::page_title("Endpoints", "All routes with curl examples."),
         version = openapi.info.version,
         sections = sections,
     )
@@ -91,11 +91,11 @@ fn operations(
     item: &utoipa::openapi::path::PathItem,
 ) -> [(&'static str, Option<&utoipa::openapi::path::Operation>); 5] {
     [
-        ("get", item.get.as_ref()),
-        ("post", item.post.as_ref()),
-        ("put", item.put.as_ref()),
-        ("patch", item.patch.as_ref()),
-        ("delete", item.delete.as_ref()),
+        ("GET", item.get.as_ref()),
+        ("POST", item.post.as_ref()),
+        ("PUT", item.put.as_ref()),
+        ("PATCH", item.patch.as_ref()),
+        ("DELETE", item.delete.as_ref()),
     ]
 }
 
@@ -104,7 +104,7 @@ fn example_for(path: &str, method: &str, secured: bool) -> String {
     if secured {
         lines.push("-H 'Authorization: Bearer YOUR_TOKEN' \\".to_string());
     }
-    if method == "post" && path.contains("/upgrade") {
+    if method == "POST" && path.contains("/upgrade") {
         lines.push("-H 'Content-Type: application/json' \\".to_string());
         lines.push(
             "-d '{\"url\":\"https://example.com/featherfly\",\"sha256\":\"...\",\"restart_command\":\"systemctl\",\"restart_command_args\":[\"restart\",\"featherfly\"]}'".to_string(),

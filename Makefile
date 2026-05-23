@@ -2,6 +2,7 @@
 
 CARGO_RUN = cargo run -q --bin featherfly --
 
+
 fmt:
 	cargo fmt --all
 

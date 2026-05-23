@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Plugins · FeatherFly</title>
+  <title>Host API · FeatherFly</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config = { darkMode: 'class' };</script>
   <style type="text/tailwindcss">
@@ -37,12 +37,19 @@
   </div>
 </header>
   <main class="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-    <article class="prose-docs"><h1>Plugin documentation</h1><p>Everything you need to build, install, and extend FeatherFly with native .so plugins.</p>
-<p>Complete reference for FeatherFly native plugins. Plugin API version <code>3</code>.</p>
-<h2>What plugins can do</h2>
-<ul><li>Listen to daemon lifecycle events (startup, shutdown, config load)</li><li>Run code when other plugins finish loading</li><li>Log messages to the daemon log via log_info</li><li>Modify JSON API response bodies before they are sent to clients</li><li>Inject, remove, or rewrite action steps in API responses</li><li>Cancel remaining handlers for the same event (lifecycle hooks only)</li></ul>
-<h2>Documentation</h2>
-<ul><li><a href="overview.html"><strong>Overview</strong></a> — What plugins are, lifecycle, hook systems, load order.</li><li><a href="getting-started.html"><strong>Getting started</strong></a> — Project setup, build, install paths, version matching.</li><li><a href="events.html"><strong>Lifecycle events</strong></a> — Every event, payload, cancel behavior, and examples.</li><li><a href="json-hooks.html"><strong>JSON mutation hooks</strong></a> — Modify API responses and action steps.</li><li><a href="host-api.html"><strong>Host API reference</strong></a> — HostApi fields, return codes, macros, HTTP method codes.</li><li><a href="example.html"><strong>Full example</strong></a> — Complete plugin with events and JSON hooks.</li></ul></article>
+    <article class="prose-docs"><h1>Host API</h1><p>Functions and structs passed to your plugin at init.</p>
+<p>During init, FeatherFly passes a HostApi struct:</p><p>- api_version — must match FEATHERFLY_PLUGIN_API_VERSION</p><p>- register_hook — register a lifecycle event callback</p><p>- register_json_hook — register a JSON mutation callback</p><p>- log_info — write an info line to the daemon log</p><p>Register hooks only inside init. Callback pointers are kept until shutdown.</p><p>init return codes: 0 = success. Any other value fails plugin load.</p><p>JSON hook return codes:</p><p>- JSON_MUTATE_MODIFIED (0) — output written via write_json_output</p><p>- JSON_MUTATE_UNCHANGED (1) — keep input unchanged</p><p>- Negative — error; input is kept</p>
+<h2>SDK macros</h2>
+<table><thead><tr><th>Macro</th><th>Purpose</th></tr></thead><tbody><tr><td><code>declare_plugin!</code></td><td>Exports featherfly_plugin_entry with name, version, init, and optional shutdown.</td></tr><tr><td><code>hook!</code></td><td>Registers a lifecycle event handler during init. Returns init error code if registration fails.</td></tr><tr><td><code>hook_json!</code></td><td>Registers a JSON mutation handler for a route prefix during init.</td></tr></tbody></table>
+<h2>Logging</h2>
+<pre><code>unsafe { log_info(host, "message"); }</code></pre>
+<p>Writes to the daemon log with target <code>plugin</code>.</p>
+<h2>JSON output helper</h2>
+<pre><code>write_json_output(ctx, &amp;json_bytes) // returns JSON_MUTATE_MODIFIED
+// or return JSON_MUTATE_UNCHANGED to keep prior JSON</code></pre>
+<h2>Inspect loaded plugins at runtime</h2>
+<pre><code>GET /api/system/plugins</code></pre>
+<p>Returns plugin names, versions, hook counts, event names, and JSON target names from the SDK.</p></article>
   </main>
   <footer class="border-t border-zinc-200 dark:border-zinc-800 py-6 text-center text-sm text-zinc-500">
     FeatherFly · <a href="https://github.com/MythicalLTD/featherfly">GitHub</a>

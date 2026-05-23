@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Plugins · FeatherFly</title>
+  <title>Full example · FeatherFly</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config = { darkMode: 'class' };</script>
   <style type="text/tailwindcss">
@@ -37,12 +37,54 @@
   </div>
 </header>
   <main class="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-    <article class="prose-docs"><h1>Plugin documentation</h1><p>Everything you need to build, install, and extend FeatherFly with native .so plugins.</p>
-<p>Complete reference for FeatherFly native plugins. Plugin API version <code>3</code>.</p>
-<h2>What plugins can do</h2>
-<ul><li>Listen to daemon lifecycle events (startup, shutdown, config load)</li><li>Run code when other plugins finish loading</li><li>Log messages to the daemon log via log_info</li><li>Modify JSON API response bodies before they are sent to clients</li><li>Inject, remove, or rewrite action steps in API responses</li><li>Cancel remaining handlers for the same event (lifecycle hooks only)</li></ul>
-<h2>Documentation</h2>
-<ul><li><a href="overview.html"><strong>Overview</strong></a> — What plugins are, lifecycle, hook systems, load order.</li><li><a href="getting-started.html"><strong>Getting started</strong></a> — Project setup, build, install paths, version matching.</li><li><a href="events.html"><strong>Lifecycle events</strong></a> — Every event, payload, cancel behavior, and examples.</li><li><a href="json-hooks.html"><strong>JSON mutation hooks</strong></a> — Modify API responses and action steps.</li><li><a href="host-api.html"><strong>Host API reference</strong></a> — HostApi fields, return codes, macros, HTTP method codes.</li><li><a href="example.html"><strong>Full example</strong></a> — Complete plugin with events and JSON hooks.</li></ul></article>
+    <article class="prose-docs"><h1>Full plugin example</h1><p>Events + JSON body + JSON actions in one plugin.</p>
+<p>Working plugin that logs on startup, adds a JSON field, and injects an action step. See also <code>plugins/hello/</code> in the repository.</p>
+<pre><code>use featherfly_plugin_sdk::{
+    declare_plugin, hook, hook_json, log_info, write_json_output, EventContext, HookResult,
+    HostApi, JsonMutateContext, JsonMutateTarget, PluginEvent, JSON_MUTATE_UNCHANGED,
+};
+
+extern "C" fn init(host: *const HostApi) -&gt; i32 {
+    hook!(host, PluginEvent::DaemonStarted, on_started);
+    hook_json!(host, JsonMutateTarget::ResponseBody, "/api/system", on_body);
+    hook_json!(host, JsonMutateTarget::ResponseActions, "/api/system", on_actions);
+    unsafe { log_info(host, "my-plugin ready") };
+    0
+}
+
+extern "C" fn on_started(_ctx: *const EventContext) -&gt; HookResult {
+    HookResult::r#continue()
+}
+
+extern "C" fn on_body(ctx: *const JsonMutateContext) -&gt; i32 {
+    let ctx = unsafe { &amp;*ctx };
+    let input = unsafe { std::slice::from_raw_parts(ctx.json_in_ptr, ctx.json_in_len) };
+    let Ok(mut value) = serde_json::from_slice::&lt;serde_json::Value&gt;(input) else {
+        return JSON_MUTATE_UNCHANGED;
+    };
+    if let Some(map) = value.as_object_mut() {
+        map.insert("my_plugin".into(), true.into());
+    }
+    let Ok(out) = serde_json::to_vec(&amp;value) else { return JSON_MUTATE_UNCHANGED };
+    write_json_output(ctx, &amp;out)
+}
+
+extern "C" fn on_actions(ctx: *const JsonMutateContext) -&gt; i32 {
+    let ctx = unsafe { &amp;*ctx };
+    let input = unsafe { std::slice::from_raw_parts(ctx.json_in_ptr, ctx.json_in_len) };
+    let Ok(mut actions) = serde_json::from_slice::&lt;Vec&lt;serde_json::Value&gt;&gt;(input) else {
+        return JSON_MUTATE_UNCHANGED;
+    };
+    actions.push(serde_json::json!({
+        "id": "my_step",
+        "label": "My plugin step",
+        "step": "GET /api/system/plugins"
+    }));
+    let Ok(out) = serde_json::to_vec(&amp;actions) else { return JSON_MUTATE_UNCHANGED };
+    write_json_output(ctx, &amp;out)
+}
+
+declare_plugin! { name: "my-plugin", version: "0.1.0", init: init }</code></pre></article>
   </main>
   <footer class="border-t border-zinc-200 dark:border-zinc-800 py-6 text-center text-sm text-zinc-500">
     FeatherFly · <a href="https://github.com/MythicalLTD/featherfly">GitHub</a>

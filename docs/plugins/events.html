@@ -3,57 +3,127 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Plugin Events</title>
-  <style>
-    :root { color-scheme: light dark; font-family: Inter, system-ui, sans-serif; line-height: 1.6; }
-    body { margin: 0; background: #0b1020; color: #eef2ff; }
-    main { max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
-    a { color: #8fb0ff; }
-    h1, h2, h3 { line-height: 1.25; }
-    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92rem; }
-    pre { background: #10182d; border: 1px solid #243055; border-radius: 10px; padding: 16px; overflow-x: auto; }
-    code { background: #10182d; padding: 2px 6px; border-radius: 6px; }
-    .nav { margin-bottom: 24px; color: #b8c0dc; }
-    .lead { color: #b8c0dc; font-size: 1.05rem; }
-    .meta { color: #8a93b0; font-size: 0.9rem; }
-    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
-    th, td { border: 1px solid #243055; padding: 10px 12px; text-align: left; vertical-align: top; }
-    th { background: #141b31; }
-    .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: 24px; }
-    a.card { display: block; padding: 20px; border-radius: 14px; background: #141b31; border: 1px solid #243055; text-decoration: none; color: inherit; }
-    a.card:hover { border-color: #5b7cfa; }
-    a.card h2 { margin: 0 0 8px; font-size: 1.15rem; }
-    a.card p { margin: 0; color: #b8c0dc; font-size: 0.95rem; }
-    .endpoint { border: 1px solid #243055; border-radius: 12px; padding: 16px; margin: 16px 0; background: #10182d; }
-    .method { display: inline-block; padding: 2px 8px; border-radius: 6px; background: #243055; font-weight: 600; text-transform: uppercase; font-size: 0.8rem; }
+  <title>Events · FeatherFly</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' };</script>
+  <style type="text/tailwindcss">
+    @layer components {
+      .prose-docs h1 { @apply text-2xl font-semibold mb-4 text-zinc-900 dark:text-zinc-100; }
+      .prose-docs h2 { @apply text-xl font-semibold mt-8 mb-3 text-zinc-900 dark:text-zinc-100; }
+      .prose-docs h3 { @apply text-lg font-medium mt-6 mb-2 text-zinc-900 dark:text-zinc-100; }
+      .prose-docs h4 { @apply text-sm font-medium mt-4 mb-2 text-zinc-700 dark:text-zinc-300; }
+      .prose-docs p { @apply mb-3 leading-relaxed text-zinc-700 dark:text-zinc-300; }
+      .prose-docs ul { @apply list-disc pl-5 mb-4 space-y-1 text-zinc-700 dark:text-zinc-300; }
+      .prose-docs ol { @apply list-decimal pl-5 mb-4 space-y-1 text-zinc-700 dark:text-zinc-300; }
+      .prose-docs a { @apply underline text-zinc-900 dark:text-zinc-100; }
+      .prose-docs code:not(pre code) { @apply font-mono text-sm px-1 py-0.5 border border-zinc-300 dark:border-zinc-700 rounded bg-zinc-100 dark:bg-zinc-900; }
+      .prose-docs pre { @apply font-mono text-sm p-4 mb-4 overflow-x-auto border border-zinc-300 dark:border-zinc-700 rounded bg-zinc-50 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200; }
+      .prose-docs pre code { @apply border-0 p-0 bg-transparent; }
+      .prose-docs table { @apply w-full text-sm mb-4 border-collapse; }
+      .prose-docs th { @apply border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-left font-medium bg-zinc-100 dark:bg-zinc-900; }
+      .prose-docs td { @apply border border-zinc-300 dark:border-zinc-700 px-3 py-2 align-top; }
+      .prose-docs hr { @apply my-8 border-zinc-300 dark:border-zinc-700; }
+    }
   </style>
 </head>
-<body>
-  <main>
-    <p class="nav"><a href="../index.html">Docs home</a> · <a href="events.html">Events</a> · <a href="json-hooks.html">JSON hooks</a> · <a href="getting-started.html">Getting started</a> · <a href="../api/index.html">HTTP API</a></p><h1>Lifecycle Events</h1>
-<p class="lead">Register with <code>hook!(host, PluginEvent::Variant, callback)</code>. Hooks run in plugin load order. Return <code>HookResult::cancel()</code> to stop remaining handlers for that event.</p>
-<table>
-<tr><th>Event</th><th>Summary</th><th>When</th><th>Payload</th><th>Cancelable</th></tr>
-<tr><td><code>config.loaded</code></td><td>Fires after the daemon config file has been parsed.</td><td>During plugin directory scan, before any `.so` files are loaded.</td><td>Raw YAML bytes of the active config file.</td><td>yes</td></tr><tr><td><code>plugin.loaded</code></td><td>Fires after each plugin finishes initialization.</td><td>Immediately after a plugin's `init` returns success.</td><td>UTF-8 plugin name bytes.</td><td>yes</td></tr><tr><td><code>daemon.starting</code></td><td>Fires before the HTTP server is constructed.</td><td>After plugins are loaded and before Axum routes are wired.</td><td>Empty.</td><td>yes</td></tr><tr><td><code>daemon.started</code></td><td>Fires when the HTTP server is listening.</td><td>Right before `axum::serve` begins accepting connections.</td><td>Listen address as UTF-8 bytes, e.g. `127.0.0.1:8080`.</td><td>yes</td></tr><tr><td><code>daemon.stopping</code></td><td>Fires during graceful shutdown.</td><td>Before plugin `shutdown` functions are invoked.</td><td>Empty.</td><td>yes</td></tr>
-</table>
-<h2>Examples</h2>
-<h3><code>config.loaded</code></h3><p>Fires after the daemon config file has been parsed. During plugin directory scan, before any `.so` files are loaded.</p><h4>Register</h4><pre><code>hook!(host, PluginEvent::ConfigLoaded, on_config_loaded);</code></pre><h4>Handler</h4><pre><code>extern "C" fn on_config_loaded(ctx: *const EventContext) -&gt; HookResult {
+<body class="bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 min-h-screen">
+  <header class="border-b border-zinc-200 dark:border-zinc-800">
+  <div class="mx-auto max-w-3xl px-4 py-4 sm:px-6 flex flex-wrap items-center justify-between gap-3">
+    <a href="../index.html" class="font-semibold no-underline text-zinc-900 dark:text-zinc-100">FeatherFly Docs</a>
+    <div class="flex flex-wrap items-center gap-3 text-sm">
+      <nav class="flex flex-wrap gap-3"><a href="index.html" class="no-underline text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100">Guide</a><a href="overview.html" class="no-underline text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100">Overview</a><a href="events.html" class="no-underline text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100">Events</a><a href="json-hooks.html" class="no-underline text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100">JSON</a><a href="host-api.html" class="no-underline text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100">Host API</a><a href="example.html" class="no-underline text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100">Example</a><a href="../api/index.html" class="no-underline text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100">HTTP</a></nav>
+      <button id="theme-toggle" type="button" class="border border-zinc-300 dark:border-zinc-700 px-2 py-1 rounded text-sm bg-white dark:bg-zinc-900">Theme</button>
+    </div>
+  </div>
+</header>
+  <main class="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+    <article class="prose-docs"><h1>Lifecycle events</h1><p>All events plugins can subscribe to, with payloads and examples.</p>
+<p>Register with <code>hook!(host, PluginEvent::Variant, callback)</code> during <code>init</code>.</p>
+<h2>Quick reference</h2>
+<table><thead><tr><th>Event</th><th>Summary</th><th>When</th><th>Payload</th><th>Cancel</th></tr></thead><tbody><tr><td><code>config.loaded</code></td><td>Config file has been parsed.</td><td>Before any plugin `.so` is loaded.</td><td>Raw bytes of the active config YAML file.</td><td>yes</td></tr><tr><td><code>plugin.loaded</code></td><td>A plugin finished initializing.</td><td>Immediately after that plugin's `init` returns 0.</td><td>UTF-8 bytes of the plugin name from its descriptor.</td><td>yes</td></tr><tr><td><code>daemon.starting</code></td><td>Daemon is about to start HTTP.</td><td>After all plugins loaded, before Axum router is built.</td><td>Empty (zero-length).</td><td>yes</td></tr><tr><td><code>daemon.started</code></td><td>HTTP server is listening.</td><td>Right before connections are accepted.</td><td>Listen address as UTF-8, e.g. `0.0.0.0:9090`.</td><td>yes</td></tr><tr><td><code>daemon.stopping</code></td><td>Daemon is shutting down.</td><td>Before plugin `shutdown` callbacks run.</td><td>Empty (zero-length).</td><td>yes</td></tr></tbody></table>
+<hr>
+<h2>Full reference</h2>
+<h2><code>config.loaded</code></h2>
+<p>Config file has been parsed.</p>
+<p><strong>When:</strong> Before any plugin `.so` is loaded.</p>
+<p><strong>Payload:</strong> Raw bytes of the active config YAML file.</p>
+<p><strong>Cancelable:</strong> yes — HookResult::cancel() stops later handlers for this event</p>
+<p>Use this to inspect config before plugins initialize. The payload is the exact file contents — parse as UTF-8 YAML in your handler if needed. You cannot change config from this hook; it is read-only notification.</p>
+<h3>Use cases</h3>
+<ul><li>Validate config and log warnings</li><li>Record config hash for diagnostics</li><li>Skip registering hooks based on config content</li></ul>
+<h3><code>config.loaded</code></h3><p>Registration and handler template</p><h4>Register</h4><pre><code>hook!(host, PluginEvent::ConfigLoaded, on_config_loaded);</code></pre><h4>Handler</h4><pre><code>extern "C" fn on_config_loaded(ctx: *const EventContext) -&gt; HookResult {
     let ctx = unsafe { &amp;*ctx };
     let payload = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
     let _yaml = std::str::from_utf8(payload).unwrap_or_default();
     HookResult::r#continue()
-}</code></pre><h3><code>plugin.loaded</code></h3><p>Fires after each plugin finishes initialization. Immediately after a plugin's `init` returns success.</p><h4>Register</h4><pre><code>hook!(host, PluginEvent::PluginLoaded, on_plugin_loaded);</code></pre><h4>Handler</h4><pre><code>extern "C" fn on_plugin_loaded(ctx: *const EventContext) -&gt; HookResult {
-    HookResult::r#continue()
-}</code></pre><h3><code>daemon.starting</code></h3><p>Fires before the HTTP server is constructed. After plugins are loaded and before Axum routes are wired.</p><h4>Register</h4><pre><code>hook!(host, PluginEvent::DaemonStarting, on_daemon_starting);</code></pre><h4>Handler</h4><pre><code>extern "C" fn on_daemon_starting(_ctx: *const EventContext) -&gt; HookResult {
-    HookResult::r#continue()
-}</code></pre><h3><code>daemon.started</code></h3><p>Fires when the HTTP server is listening. Right before `axum::serve` begins accepting connections.</p><h4>Register</h4><pre><code>hook!(host, PluginEvent::DaemonStarted, on_daemon_started);</code></pre><h4>Handler</h4><pre><code>extern "C" fn on_daemon_started(ctx: *const EventContext) -&gt; HookResult {
+}</code></pre><hr><h2><code>plugin.loaded</code></h2>
+<p>A plugin finished initializing.</p>
+<p><strong>When:</strong> Immediately after that plugin's `init` returns 0.</p>
+<p><strong>Payload:</strong> UTF-8 bytes of the plugin name from its descriptor.</p>
+<p><strong>Cancelable:</strong> yes — HookResult::cancel() stops later handlers for this event</p>
+<p>Fires once per successfully loaded plugin, including plugins loaded before yours. Useful for coordination between plugins. Does not fire for plugins that failed to load.</p>
+<h3>Use cases</h3>
+<ul><li>Track which plugins are present</li><li>Defer work until a dependency plugin loaded</li><li>Audit plugin load order</li></ul>
+<h3><code>plugin.loaded</code></h3><p>Registration and handler template</p><h4>Register</h4><pre><code>hook!(host, PluginEvent::PluginLoaded, on_plugin_loaded);</code></pre><h4>Handler</h4><pre><code>extern "C" fn on_plugin_loaded(ctx: *const EventContext) -&gt; HookResult {
     let ctx = unsafe { &amp;*ctx };
-    let address = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
-    let _addr = std::str::from_utf8(address).unwrap_or_default();
+    let name = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
+    let _name = std::str::from_utf8(name).unwrap_or_default();
     HookResult::r#continue()
-}</code></pre><h3><code>daemon.stopping</code></h3><p>Fires during graceful shutdown. Before plugin `shutdown` functions are invoked.</p><h4>Register</h4><pre><code>hook!(host, PluginEvent::DaemonStopping, on_daemon_stopping);</code></pre><h4>Handler</h4><pre><code>extern "C" fn on_daemon_stopping(_ctx: *const EventContext) -&gt; HookResult {
+}</code></pre><hr><h2><code>daemon.starting</code></h2>
+<p>Daemon is about to start HTTP.</p>
+<p><strong>When:</strong> After all plugins loaded, before Axum router is built.</p>
+<p><strong>Payload:</strong> Empty (zero-length).</p>
+<p><strong>Cancelable:</strong> yes — HookResult::cancel() stops later handlers for this event</p>
+<p>Last chance to register nothing new — init has already run. Use for prep work that must happen before the API exists. Returning cancel stops later handlers on this event only; it does not stop the daemon.</p>
+<h3>Use cases</h3>
+<ul><li>Warm up caches or connections</li><li>Log startup banner from plugin</li><li>Validate environment before HTTP binds</li></ul>
+<h3><code>daemon.starting</code></h3><p>Registration and handler template</p><h4>Register</h4><pre><code>hook!(host, PluginEvent::DaemonStarting, on_daemon_starting);</code></pre><h4>Handler</h4><pre><code>extern "C" fn on_daemon_starting(_ctx: *const EventContext) -&gt; HookResult {
     HookResult::r#continue()
-}</code></pre>
+}</code></pre><hr><h2><code>daemon.started</code></h2>
+<p>HTTP server is listening.</p>
+<p><strong>When:</strong> Right before connections are accepted.</p>
+<p><strong>Payload:</strong> Listen address as UTF-8, e.g. `0.0.0.0:9090`.</p>
+<p><strong>Cancelable:</strong> yes — HookResult::cancel() stops later handlers for this event</p>
+<p>The daemon is fully operational. Safe to assume API routes and plugin JSON hooks are active. Payload is the socket address string logged at startup.</p>
+<h3>Use cases</h3>
+<ul><li>Start background work tied to the running daemon</li><li>Register external integrations with the listen URL</li><li>Emit startup metrics</li></ul>
+<h3><code>daemon.started</code></h3><p>Registration and handler template</p><h4>Register</h4><pre><code>hook!(host, PluginEvent::DaemonStarted, on_daemon_started);</code></pre><h4>Handler</h4><pre><code>extern "C" fn on_daemon_started(ctx: *const EventContext) -&gt; HookResult {
+    let ctx = unsafe { &amp;*ctx };
+    let addr = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
+    let _addr = std::str::from_utf8(addr).unwrap_or_default();
+    HookResult::r#continue()
+}</code></pre><hr><h2><code>daemon.stopping</code></h2>
+<p>Daemon is shutting down.</p>
+<p><strong>When:</strong> Before plugin `shutdown` callbacks run.</p>
+<p><strong>Payload:</strong> Empty (zero-length).</p>
+<p><strong>Cancelable:</strong> yes — HookResult::cancel() stops later handlers for this event</p>
+<p>Graceful shutdown in progress. Release resources in your shutdown function; use this event for cross-plugin shutdown coordination. HTTP may still be winding down.</p>
+<h3>Use cases</h3>
+<ul><li>Flush buffers or close connections</li><li>Notify external systems</li><li>Coordinate ordered shutdown between plugins</li></ul>
+<h3><code>daemon.stopping</code></h3><p>Registration and handler template</p><h4>Register</h4><pre><code>hook!(host, PluginEvent::DaemonStopping, on_daemon_stopping);</code></pre><h4>Handler</h4><pre><code>extern "C" fn on_daemon_stopping(_ctx: *const EventContext) -&gt; HookResult {
+    HookResult::r#continue()
+}</code></pre><hr></article>
   </main>
+  <footer class="border-t border-zinc-200 dark:border-zinc-800 py-6 text-center text-sm text-zinc-500">
+    FeatherFly · <a href="https://github.com/MythicalLTD/featherfly">GitHub</a>
+  </footer>
+  <script>
+    (function () {
+      const root = document.documentElement;
+      const btn = document.getElementById('theme-toggle');
+      function apply(theme) {
+        root.classList.toggle('dark', theme === 'dark');
+        localStorage.setItem('featherfly-theme', theme);
+        if (btn) btn.textContent = theme === 'dark' ? 'Light' : 'Dark';
+      }
+      const saved = localStorage.getItem('featherfly-theme');
+      if (saved === 'dark' || saved === 'light') apply(saved);
+      else if (window.matchMedia('(prefers-color-scheme: dark)').matches) apply('dark');
+      else apply('light');
+      if (btn) btn.addEventListener('click', function () {
+        apply(root.classList.contains('dark') ? 'light' : 'dark');
+      });
+    })();
+  </script>
 </body>
 </html>

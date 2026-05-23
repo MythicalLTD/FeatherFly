@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Plugins · FeatherFly</title>
+  <title>Overview · FeatherFly</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config = { darkMode: 'class' };</script>
   <style type="text/tailwindcss">
@@ -37,12 +37,16 @@
   </div>
 </header>
   <main class="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-    <article class="prose-docs"><h1>Plugin documentation</h1><p>Everything you need to build, install, and extend FeatherFly with native .so plugins.</p>
-<p>Complete reference for FeatherFly native plugins. Plugin API version <code>3</code>.</p>
-<h2>What plugins can do</h2>
+    <article class="prose-docs"><h1>Overview</h1><p>How FeatherFly plugins work.</p>
+<p>FeatherFly plugins are native shared libraries (`.so` files) loaded at daemon startup. They extend the daemon without recompiling FeatherFly itself.</p><p>A plugin exports one symbol: `featherfly_plugin_entry`. The daemon loads each `.so`, checks the plugin API version, calls `init`, and keeps the library in memory until shutdown.</p><p>Plugins register hooks during `init`. There are two hook systems:</p><p>1. **Lifecycle events** — callbacks fired at fixed points (config loaded, daemon started, etc.).</p><p>2. **JSON mutation hooks** — callbacks that receive JSON, may rewrite it, and return modified output for HTTP responses.</p><p>All hooks for a given target run in **plugin load order** (alphabetical by filename in the plugins directory).</p>
+<h2>Capabilities</h2>
 <ul><li>Listen to daemon lifecycle events (startup, shutdown, config load)</li><li>Run code when other plugins finish loading</li><li>Log messages to the daemon log via log_info</li><li>Modify JSON API response bodies before they are sent to clients</li><li>Inject, remove, or rewrite action steps in API responses</li><li>Cancel remaining handlers for the same event (lifecycle hooks only)</li></ul>
-<h2>Documentation</h2>
-<ul><li><a href="overview.html"><strong>Overview</strong></a> — What plugins are, lifecycle, hook systems, load order.</li><li><a href="getting-started.html"><strong>Getting started</strong></a> — Project setup, build, install paths, version matching.</li><li><a href="events.html"><strong>Lifecycle events</strong></a> — Every event, payload, cancel behavior, and examples.</li><li><a href="json-hooks.html"><strong>JSON mutation hooks</strong></a> — Modify API responses and action steps.</li><li><a href="host-api.html"><strong>Host API reference</strong></a> — HostApi fields, return codes, macros, HTTP method codes.</li><li><a href="example.html"><strong>Full example</strong></a> — Complete plugin with events and JSON hooks.</li></ul></article>
+<h2>Daemon lifecycle (hook order)</h2>
+<p>1. Daemon reads config.yml</p><p>2. `config.loaded` event fires (payload = raw YAML bytes)</p><p>3. Each `.so` in the plugins directory is loaded</p><p>4. For each plugin: `init(host)` runs — register hooks here</p><p>5. After each plugin init: `plugin.loaded` event fires (payload = plugin name)</p><p>6. `daemon.starting` fires before HTTP routes are wired</p><p>7. HTTP server starts listening</p><p>8. `daemon.started` fires (payload = listen address, e.g. `127.0.0.1:9090`)</p><p>9. On shutdown: `daemon.stopping` fires, then each plugin's `shutdown` runs</p>
+<h2>Hook systems</h2>
+<p><strong>Lifecycle events</strong> — fixed points in daemon startup/shutdown. Callback signature: <code>extern "C" fn(*const EventContext) -&gt; HookResult</code>.</p>
+<p><strong>JSON mutation</strong> — runs on every JSON HTTP response matching your route prefix. Callback signature: <code>extern "C" fn(*const JsonMutateContext) -&gt; i32</code>.</p>
+<p>Register all hooks inside <code>init</code>. Hooks run in plugin load order (sorted by filename in the plugins directory).</p></article>
   </main>
   <footer class="border-t border-zinc-200 dark:border-zinc-800 py-6 text-center text-sm text-zinc-500">
     FeatherFly · <a href="https://github.com/MythicalLTD/featherfly">GitHub</a>
