@@ -26,5 +26,8 @@ featherfly.pid
 # Local release/cross build output
 dist/
 
+# Generated documentation (built by CI / `make docs`, published via GitHub Pages)
+docs/
+
 # Reference checkout kept locally, not part of this repo
 wings/

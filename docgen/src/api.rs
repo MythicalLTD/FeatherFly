@@ -1,4 +1,4 @@
-use crate::html::{self, Section};
+use crate::html::{self, PageContext};
 use std::path::Path;
 
 pub fn generate_api_docs(output: &Path, openapi: &utoipa::openapi::OpenApi) -> std::io::Result<()> {
@@ -10,14 +10,14 @@ pub fn generate_api_docs(output: &Path, openapi: &utoipa::openapi::OpenApi) -> s
     html::write(
         &output.join("index.html"),
         "HTTP API",
-        Section::Api,
+        PageContext::api("api-swagger"),
         &swagger_page(),
     )?;
 
     html::write(
         &output.join("endpoints.html"),
         "Endpoints",
-        Section::Api,
+        PageContext::api("api-endpoints"),
         &endpoints_page(openapi),
     )?;
 
@@ -28,7 +28,7 @@ fn swagger_page() -> String {
     format!(
         r##"{title}
 <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css">
-<div class="border border-zinc-300 dark:border-zinc-700 rounded my-4">
+<div class="border border-zinc-300 dark:border-zinc-700 rounded my-4 -mx-4 sm:mx-0">
   <div id="swagger-ui"></div>
 </div>
 <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"></script>
@@ -44,7 +44,7 @@ window.onload = () => {{
   }});
 }};
 </script>"##,
-        title = html::page_title("HTTP API", "Interactive OpenAPI documentation."),
+        title = html::page_header("HTTP API", "Interactive OpenAPI documentation."),
     )
 }
 
@@ -79,9 +79,9 @@ fn endpoints_page(openapi: &utoipa::openapi::OpenApi) -> String {
 
     format!(
         "{title}
-<p>OpenAPI version <code>{version}</code>. <a href=\"openapi.json\">Download JSON</a>.</p>
+<p>OpenAPI <code>{version}</code> · <a href=\"openapi.json\">Download JSON</a></p>
 {sections}",
-        title = html::page_title("Endpoints", "All routes with curl examples."),
+        title = html::page_header("Endpoints", "All routes with curl examples."),
         version = openapi.info.version,
         sections = sections,
     )

@@ -2,7 +2,7 @@ mod api;
 mod html;
 mod plugins;
 
-use html::Section;
+use html::PageContext;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -31,29 +31,63 @@ pub fn generate_minimal(output: &Path) -> std::io::Result<()> {
 }
 
 fn write_hub(path: &Path) -> std::io::Result<()> {
-    html::write(path, "Home", Section::Root, &hub_body())
+    html::write(path, "Home", PageContext::root("home"), &hub_body())
 }
 
 fn hub_body() -> String {
     format!(
-        "{title}
-<p>Auto-generated from the OpenAPI spec and plugin SDK. <a href=\"https://mythicalltd.github.io/featherfly/\">GitHub Pages</a>.</p>
-<h2>Plugin documentation</h2>
-{plugin_links}
+        "{header}
+{plugin_cards}
 <h2>HTTP API</h2>
-{api_links}
-<p class=\"text-sm text-zinc-500\">Plugin API version {version} · run <code>make docs</code> to regenerate</p>",
-        title = html::page_title("FeatherFly documentation", "Daemon API and plugin developer reference."),
-        plugin_links = html::link_list(&[
-            ("plugins/index.html", "Plugin guide", "Full plugin documentation index"),
-            ("plugins/events.html", "Events", "All lifecycle events plugins can use"),
-            ("plugins/json-hooks.html", "JSON hooks", "Modify responses and actions"),
-            ("plugins/example.html", "Example", "Complete plugin source"),
+{api_cards}
+<p class=\"text-xs text-zinc-500 mt-8\">Plugin API v{version} · run <code>make docs</code> to regenerate</p>",
+        header = html::page_header(
+            "FeatherFly documentation",
+            "Daemon HTTP API and native plugin developer reference.",
+        ),
+        plugin_cards = html::card_grid(&[
+            (
+                "plugins/index.html",
+                "Plugin guide",
+                "Build and extend FeatherFly with native .so plugins.",
+            ),
+            (
+                "plugins/getting-started.html",
+                "Getting started",
+                "Setup, build, install — start here.",
+            ),
+            (
+                "plugins/events/index.html",
+                "Lifecycle events",
+                "config.loaded, daemon.started, and more.",
+            ),
+            (
+                "plugins/json-hooks/index.html",
+                "JSON hooks",
+                "Modify responses and action steps.",
+            ),
+            (
+                "plugins/example.html",
+                "Example plugin",
+                "Complete source with events and JSON hooks.",
+            ),
         ]),
-        api_links = html::link_list(&[
-            ("api/index.html", "Swagger UI", "Interactive API explorer"),
-            ("api/endpoints.html", "Endpoints", "curl examples for every route"),
-            ("api/openapi.json", "OpenAPI JSON", "Machine-readable schema"),
+        api_cards = html::card_grid(&[
+            (
+                "api/index.html",
+                "Swagger UI",
+                "Interactive API explorer.",
+            ),
+            (
+                "api/endpoints.html",
+                "Endpoints",
+                "curl examples for every route.",
+            ),
+            (
+                "api/openapi.json",
+                "OpenAPI JSON",
+                "Machine-readable schema.",
+            ),
         ]),
         version = featherfly_plugin_sdk::metadata::plugin_api_version(),
     )

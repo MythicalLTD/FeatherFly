@@ -1,98 +1,139 @@
-use crate::html::{self, Section};
+use crate::html::{self, PageContext};
 use featherfly_plugin_sdk::metadata::{
-    BUILD_AND_INSTALL, CAPABILITIES, EVENT_DOCS, FULL_PLUGIN_EXAMPLE, HOST_API, JSON_HOOK_DOCS,
-    LIFECYCLE, MACROS, OVERVIEW, plugin_api_version,
+    BUILD_AND_INSTALL, EVENT_DOCS, FULL_PLUGIN_EXAMPLE, HOST_API, JSON_HOOK_DOCS, LIFECYCLE,
+    MACROS, OVERVIEW, plugin_api_version,
 };
 use std::path::Path;
 
 pub fn generate_plugin_docs(output: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(output)?;
+    std::fs::create_dir_all(output.join("events"))?;
+    std::fs::create_dir_all(output.join("json-hooks"))?;
 
     html::write(
         &output.join("index.html"),
         "Plugins",
-        Section::Plugins,
+        PageContext::plugins("plugins"),
         &index_page(),
-    )?;
-    html::write(
-        &output.join("overview.html"),
-        "Overview",
-        Section::Plugins,
-        &overview_page(),
-    )?;
-    html::write(
-        &output.join("events.html"),
-        "Events",
-        Section::Plugins,
-        &events_page(),
-    )?;
-    html::write(
-        &output.join("json-hooks.html"),
-        "JSON hooks",
-        Section::Plugins,
-        &json_hooks_page(),
-    )?;
-    html::write(
-        &output.join("host-api.html"),
-        "Host API",
-        Section::Plugins,
-        &host_api_page(),
     )?;
     html::write(
         &output.join("getting-started.html"),
         "Getting started",
-        Section::Plugins,
+        PageContext::plugins("getting-started"),
         &getting_started_page(),
+    )?;
+    html::write(
+        &output.join("overview.html"),
+        "Overview",
+        PageContext::plugins("overview"),
+        &overview_page(),
+    )?;
+    html::write(
+        &output.join("events/index.html"),
+        "Lifecycle events",
+        PageContext::plugins("events"),
+        &events_index_page(),
+    )?;
+    for doc in EVENT_DOCS {
+        let slug = html::event_slug(doc.name);
+        html::write(
+            &output.join(format!("events/{slug}.html")),
+            doc.name,
+            PageContext::plugins_nested(event_active_id(doc.name)),
+            &event_detail_page(doc),
+        )?;
+    }
+    html::write(
+        &output.join("json-hooks/index.html"),
+        "JSON hooks",
+        PageContext::plugins("json-hooks"),
+        &json_hooks_index_page(),
+    )?;
+    for doc in JSON_HOOK_DOCS {
+        let (slug, active) = json_hook_paths(doc.name);
+        html::write(
+            &output.join(format!("json-hooks/{slug}.html")),
+            doc.name,
+            PageContext::plugins_nested(active),
+            &json_hook_detail_page(doc),
+        )?;
+    }
+    html::write(
+        &output.join("host-api.html"),
+        "Host API",
+        PageContext::plugins("host-api"),
+        &host_api_page(),
     )?;
     html::write(
         &output.join("example.html"),
         "Full example",
-        Section::Plugins,
+        PageContext::plugins("example"),
         &example_page(),
     )?;
+
+    // Remove legacy flat pages if present
+    let _ = std::fs::remove_file(output.join("events.html"));
+    let _ = std::fs::remove_file(output.join("json-hooks.html"));
 
     Ok(())
 }
 
+fn json_hook_paths(name: &str) -> (&'static str, &'static str) {
+    match name {
+        "json.response" => ("response-body", "json-response"),
+        "json.actions" => ("response-actions", "json-actions"),
+        _ => ("index", "json-hooks"),
+    }
+}
+
+fn event_active_id(name: &str) -> &'static str {
+    match name {
+        "config.loaded" => "event-config-loaded",
+        "plugin.loaded" => "event-plugin-loaded",
+        "daemon.starting" => "event-daemon-starting",
+        "daemon.started" => "event-daemon-started",
+        "daemon.stopping" => "event-daemon-stopping",
+        _ => "events",
+    }
+}
+
 fn index_page() -> String {
     format!(
-        "{title}
-<p>Complete reference for FeatherFly native plugins. Plugin API version <code>{version}</code>.</p>
-<h2>What plugins can do</h2>
-{capabilities}
-<h2>Documentation</h2>
+        "{header}
+<p>Plugin API version <code>{version}</code>.</p>
+{cards}
+<h2>Quick links</h2>
 {links}",
-        title = html::page_title(
+        header = html::page_header(
             "Plugin documentation",
-            "Everything you need to build, install, and extend FeatherFly with native .so plugins.",
+            "Build native .so plugins that extend FeatherFly at runtime.",
         ),
         version = plugin_api_version(),
-        capabilities = capabilities_list(),
-        links = html::link_list(&[
-            (
-                "overview.html",
-                "Overview",
-                "What plugins are, lifecycle, hook systems, load order.",
-            ),
+        cards = html::card_grid(&[
             (
                 "getting-started.html",
                 "Getting started",
-                "Project setup, build, install paths, version matching.",
+                "Project setup, build commands, install paths.",
             ),
             (
-                "events.html",
+                "overview.html",
+                "Overview",
+                "How plugins load, lifecycle, hook systems.",
+            ),
+            (
+                "events/index.html",
                 "Lifecycle events",
-                "Every event, payload, cancel behavior, and examples.",
+                "Startup, shutdown, and config hooks.",
             ),
             (
-                "json-hooks.html",
-                "JSON mutation hooks",
-                "Modify API responses and action steps.",
+                "json-hooks/index.html",
+                "JSON hooks",
+                "Modify API responses before clients see them.",
             ),
             (
                 "host-api.html",
-                "Host API reference",
-                "HostApi fields, return codes, macros, HTTP method codes.",
+                "Host API",
+                "HostApi fields, macros, return codes.",
             ),
             (
                 "example.html",
@@ -100,128 +141,135 @@ fn index_page() -> String {
                 "Complete plugin with events and JSON hooks.",
             ),
         ]),
+        links = html::card_grid(&[(
+            "../api/index.html",
+            "HTTP API (Swagger)",
+            "Interactive explorer for daemon routes.",
+        )]),
     )
 }
 
 fn overview_page() -> String {
     format!(
-        "{title}
+        "{header}
 {overview}
-<h2>Capabilities</h2>
-{capabilities}
-<h2>Daemon lifecycle (hook order)</h2>
+<h2>Startup sequence</h2>
 {lifecycle}
 <h2>Hook systems</h2>
-<p><strong>Lifecycle events</strong> — fixed points in daemon startup/shutdown. Callback signature: <code>extern \"C\" fn(*const EventContext) -&gt; HookResult</code>.</p>
-<p><strong>JSON mutation</strong> — runs on every JSON HTTP response matching your route prefix. Callback signature: <code>extern \"C\" fn(*const JsonMutateContext) -&gt; i32</code>.</p>
-<p>Register all hooks inside <code>init</code>. Hooks run in plugin load order (sorted by filename in the plugins directory).</p>",
-        title = html::page_title("Overview", "How FeatherFly plugins work."),
+<div class=\"grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6\">
+  <div class=\"meta-item\">
+    <div class=\"meta-label\">Lifecycle events</div>
+    <div class=\"meta-value\">Fixed points in startup/shutdown. Register with <code>hook!</code>. See <a href=\"events/index.html\">events</a>.</div>
+  </div>
+  <div class=\"meta-item\">
+    <div class=\"meta-label\">JSON mutation</div>
+    <div class=\"meta-value\">Rewrite response JSON per route prefix. Register with <code>hook_json!</code>. See <a href=\"json-hooks/index.html\">JSON hooks</a>.</div>
+  </div>
+</div>
+<p>All hooks for a target run in <strong>plugin load order</strong> (alphabetical by <code>.so</code> filename). Register everything inside <code>init</code>.</p>",
+        header = html::page_header("Overview", "How FeatherFly loads and runs plugins."),
         overview = html::text_block(OVERVIEW),
-        capabilities = capabilities_list(),
         lifecycle = html::text_block(LIFECYCLE),
     )
 }
 
-fn events_page() -> String {
+fn events_index_page() -> String {
+    let mut card_html = String::from(r#"<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">"#);
     let mut summary_rows = String::new();
-    let mut full = String::new();
 
     for doc in EVENT_DOCS {
-        summary_rows.push_str(&format!(
-            "<tr><td><code>{}</code></td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
-            doc.name,
-            doc.summary,
-            doc.when,
-            doc.payload,
-            if doc.cancelable { "yes" } else { "no" }
+        let slug = html::event_slug(doc.name);
+        card_html.push_str(&format!(
+            r#"<a href="{slug}.html" class="doc-card"><strong class="block mb-1 text-zinc-900 dark:text-zinc-100"><code>{name}</code></strong><span class="text-sm text-zinc-600 dark:text-zinc-400">{summary}</span></a>"#,
+            slug = slug,
+            name = doc.name,
+            summary = doc.summary,
         ));
-
-        full.push_str(&format!(
-            "<h2><code>{}</code></h2>
-<p>{summary}</p>
-<p><strong>When:</strong> {when}</p>
-<p><strong>Payload:</strong> {payload}</p>
-<p><strong>Cancelable:</strong> {cancelable}</p>
-<p>{details}</p>
-<h3>Use cases</h3>
-{use_cases}
-{example}",
-            doc.name,
+        summary_rows.push_str(&format!(
+            "<tr><td><a href=\"{slug}.html\"><code>{name}</code></a></td><td>{summary}</td><td>{when}</td><td>{cancel}</td></tr>",
+            slug = slug,
+            name = doc.name,
             summary = doc.summary,
             when = doc.when,
-            payload = doc.payload,
-            cancelable = if doc.cancelable {
-                "yes — HookResult::cancel() stops later handlers for this event"
-            } else {
-                "no"
-            },
-            details = doc.details,
-            use_cases = html::use_cases_list(doc.use_cases),
-            example = html::example_block(
-                doc.name,
-                "Registration and handler template",
-                doc.register_example,
-                doc.handler_example,
-            ),
+            cancel = if doc.cancelable { "yes" } else { "no" },
         ));
     }
+    card_html.push_str("</div>");
 
     format!(
-        "{title}
-<p>Register with <code>hook!(host, PluginEvent::Variant, callback)</code> during <code>init</code>.</p>
+        "{header}
+<p>Register during <code>init</code> with <code>hook!(host, PluginEvent::Variant, callback)</code>.</p>
+{card_grid}
 <h2>Quick reference</h2>
-<table><thead><tr><th>Event</th><th>Summary</th><th>When</th><th>Payload</th><th>Cancel</th></tr></thead><tbody>{summary_rows}</tbody></table>
-<hr>
-<h2>Full reference</h2>
-{full}",
-        title = html::page_title(
+<table><thead><tr><th>Event</th><th>Summary</th><th>When</th><th>Cancel</th></tr></thead><tbody>{rows}</tbody></table>",
+        header = html::page_header(
             "Lifecycle events",
-            "All events plugins can subscribe to, with payloads and examples.",
+            "Callbacks at fixed points in daemon startup and shutdown.",
         ),
-        summary_rows = summary_rows,
-        full = full,
+        card_grid = card_html,
+        rows = summary_rows,
     )
 }
 
-fn json_hooks_page() -> String {
+fn event_detail_page(doc: &featherfly_plugin_sdk::metadata::EventDoc) -> String {
+    format!(
+        "{header}
+{meta}
+<p>{details}</p>
+<h2>Use cases</h2>
+{use_cases}
+<h2>Example</h2>
+{example}
+<p><a href=\"index.html\">← All lifecycle events</a></p>",
+        header = html::page_header(doc.name, doc.summary),
+        meta = html::meta_grid(&[
+            ("When", doc.when),
+            ("Payload", doc.payload),
+            (
+                "Cancelable",
+                if doc.cancelable {
+                    "Yes — HookResult::cancel() stops later handlers"
+                } else {
+                    "No"
+                },
+            ),
+        ]),
+        details = doc.details,
+        use_cases = html::use_cases_list(doc.use_cases),
+        example = html::example_block(
+            "Registration and handler",
+            doc.register_example,
+            doc.handler_example,
+        ),
+    )
+}
+
+fn json_hooks_index_page() -> String {
+    let mut card_html = String::from(r#"<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">"#);
     let mut summary_rows = String::new();
-    let mut full = String::new();
 
     for doc in JSON_HOOK_DOCS {
-        summary_rows.push_str(&format!(
-            "<tr><td><code>{}</code></td><td>{}</td><td>{}</td><td>{}</td></tr>",
-            doc.name, doc.summary, doc.input, doc.route_matching
-        ));
-
-        full.push_str(&format!(
-            "<h2><code>{}</code></h2>
-<p>{summary}</p>
-<p><strong>Input:</strong> {input}</p>
-<p><strong>Route matching:</strong> {routes}</p>
-<p><strong>Pipeline:</strong> {pipeline}</p>
-<p>{details}</p>
-<h3>Use cases</h3>
-{use_cases}
-{example}",
-            doc.name,
+        let (slug, _) = json_hook_paths(doc.name);
+        card_html.push_str(&format!(
+            r#"<a href="{slug}.html" class="doc-card"><strong class="block mb-1 text-zinc-900 dark:text-zinc-100"><code>{name}</code></strong><span class="text-sm text-zinc-600 dark:text-zinc-400">{summary}</span></a>"#,
+            slug = slug,
+            name = doc.name,
             summary = doc.summary,
-            input = doc.input,
+        ));
+        summary_rows.push_str(&format!(
+            "<tr><td><a href=\"{slug}.html\"><code>{name}</code></a></td><td>{summary}</td><td>{routes}</td></tr>",
+            slug = slug,
+            name = doc.name,
+            summary = doc.summary,
             routes = doc.route_matching,
-            pipeline = doc.pipeline,
-            details = doc.details,
-            use_cases = html::use_cases_list(doc.use_cases),
-            example = html::example_block(
-                doc.name,
-                "Registration and handler template",
-                doc.register_example,
-                doc.handler_example,
-            ),
         ));
     }
+    card_html.push_str("</div>");
 
     format!(
-        "{title}
-<p>Register with <code>hook_json!(host, JsonMutateTarget::Variant, route_pattern, callback)</code> during <code>init</code>.</p>
+        "{header}
+<p>Register during <code>init</code> with <code>hook_json!(host, JsonMutateTarget::Variant, route, callback)</code>.</p>
+{card_grid}
 <h2>Action object shape</h2>
 <pre><code>{{
   \"id\": \"check_update\",
@@ -229,16 +277,39 @@ fn json_hooks_page() -> String {
   \"step\": \"GET /api/system/update\"
 }}</code></pre>
 <h2>Quick reference</h2>
-<table><thead><tr><th>Target</th><th>Summary</th><th>Input</th><th>Routes</th></tr></thead><tbody>{summary_rows}</tbody></table>
-<hr>
-<h2>Full reference</h2>
-{full}",
-        title = html::page_title(
+<table><thead><tr><th>Target</th><th>Summary</th><th>Route matching</th></tr></thead><tbody>{rows}</tbody></table>",
+        header = html::page_header(
             "JSON mutation hooks",
-            "Modify API response bodies and action arrays before clients receive them.",
+            "Rewrite API response bodies and action arrays per route.",
         ),
-        summary_rows = summary_rows,
-        full = full,
+        card_grid = card_html,
+        rows = summary_rows,
+    )
+}
+
+fn json_hook_detail_page(doc: &featherfly_plugin_sdk::metadata::JsonHookDoc) -> String {
+    format!(
+        "{header}
+{meta}
+<p>{details}</p>
+<h2>Use cases</h2>
+{use_cases}
+<h2>Example</h2>
+{example}
+<p><a href=\"index.html\">← All JSON hooks</a></p>",
+        header = html::page_header(doc.name, doc.summary),
+        meta = html::meta_grid(&[
+            ("Input", doc.input),
+            ("Route matching", doc.route_matching),
+            ("Pipeline", doc.pipeline),
+        ]),
+        details = doc.details,
+        use_cases = html::use_cases_list(doc.use_cases),
+        example = html::example_block(
+            "Registration and handler",
+            doc.register_example,
+            doc.handler_example,
+        ),
     )
 }
 
@@ -251,20 +322,18 @@ fn host_api_page() -> String {
     }
 
     format!(
-        "{title}
+        "{header}
 {host_api}
 <h2>SDK macros</h2>
 <table><thead><tr><th>Macro</th><th>Purpose</th></tr></thead><tbody>{macro_rows}</tbody></table>
 <h2>Logging</h2>
 <pre><code>unsafe {{ log_info(host, \"message\"); }}</code></pre>
-<p>Writes to the daemon log with target <code>plugin</code>.</p>
-<h2>JSON output helper</h2>
-<pre><code>write_json_output(ctx, &amp;json_bytes) // returns JSON_MUTATE_MODIFIED
-// or return JSON_MUTATE_UNCHANGED to keep prior JSON</code></pre>
-<h2>Inspect loaded plugins at runtime</h2>
-<pre><code>GET /api/system/plugins</code></pre>
-<p>Returns plugin names, versions, hook counts, event names, and JSON target names from the SDK.</p>",
-        title = html::page_title("Host API", "Functions and structs passed to your plugin at init."),
+<h2>JSON output</h2>
+<pre><code>write_json_output(ctx, &amp;json_bytes)  // JSON_MUTATE_MODIFIED
+return JSON_MUTATE_UNCHANGED           // keep prior JSON</code></pre>
+<h2>Runtime inspection</h2>
+<p><code>GET /api/system/plugins</code> — lists loaded plugins, hook counts, and registered targets.</p>",
+        header = html::page_header("Host API", "What FeatherFly passes to your plugin at init."),
         host_api = html::text_block(HOST_API),
         macro_rows = macro_rows,
     )
@@ -272,9 +341,9 @@ fn host_api_page() -> String {
 
 fn getting_started_page() -> String {
     format!(
-        "{title}
+        "{header}
 {build}",
-        title = html::page_title(
+        header = html::page_header(
             "Getting started",
             "Create, build, and install your first plugin.",
         ),
@@ -284,22 +353,13 @@ fn getting_started_page() -> String {
 
 fn example_page() -> String {
     format!(
-        "{title}
-<p>Working plugin that logs on startup, adds a JSON field, and injects an action step. See also <code>plugins/hello/</code> in the repository.</p>
+        "{header}
+<p>Working plugin: logs on startup, adds a JSON field, injects an action step. Source also lives in <code>plugins/hello/</code>.</p>
 <pre><code>{example}</code></pre>",
-        title = html::page_title(
+        header = html::page_header(
             "Full plugin example",
             "Events + JSON body + JSON actions in one plugin.",
         ),
         example = html::html_escape(FULL_PLUGIN_EXAMPLE),
     )
-}
-
-fn capabilities_list() -> String {
-    let mut out = String::from("<ul>");
-    for cap in CAPABILITIES {
-        out.push_str(&format!("<li>{cap}</li>"));
-    }
-    out.push_str("</ul>");
-    out
 }

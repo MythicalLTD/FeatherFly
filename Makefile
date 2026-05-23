@@ -37,7 +37,6 @@ check: fmt clippy test build
 ci: fmt
 	cargo fmt --all -- --check
 	cargo run --bin generate-docs
-	git diff --exit-code docs/
 	cargo clippy --all-targets --all-features -- -D warnings
 	cargo test --workspace --all-targets
 	cargo build

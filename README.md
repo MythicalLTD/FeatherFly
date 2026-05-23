@@ -109,7 +109,7 @@ cargo run --bin generate-docs
 featherfly docs generate
 ```
 
-Full reference: [Plugin events](docs/plugins/events.html), [JSON hooks](docs/plugins/json-hooks.html), and the public site at **https://mythicalltd.github.io/featherfly/** after GitHub Pages deploys.
+Full reference on GitHub Pages: **https://mythicalltd.github.io/featherfly/** (plugin events, JSON hooks, Swagger). Preview locally with `make docs` and open `docs/index.html`.
 
 ### Build and ship
 
@@ -155,16 +155,15 @@ See `config.example.yml`.
 
 ## API
 
-Human-readable docs are generated into [`docs/`](docs/) and published to GitHub Pages — they are **not** bundled in the daemon binary.
+Human-readable docs are **generated at deploy time** by `.github/workflows/docs.yml` and published to GitHub Pages — they are **not** committed to git or bundled in the daemon binary.
 
 - **https://mythicalltd.github.io/featherfly/** — public docs (plugin hooks, Swagger, curl examples)
+- `make docs` — generate into `docs/` for local preview only
 - `GET /openapi.json` — machine-readable OpenAPI schema from a running daemon
 - `GET /health` — no auth
 - `GET /api/system` — bearer auth required (includes `actions`)
 - `GET /api/system/update` — bearer auth required
 - `GET /api/system/plugins` — loaded plugins, hooks, and JSON targets
-
-Regenerate local docs with `make docs` or `featherfly docs generate`.
 
 ## CLI
 
