@@ -1,4 +1,4 @@
-.PHONY: debug build release run test fmt clippy check audit plugin plugin-ship docs setup-hooks
+.PHONY: debug build release run test fmt clippy check audit plugin plugin-ship docs setup-hooks ci
 
 CARGO_RUN = cargo run -q --bin featherfly --
 
@@ -33,6 +33,14 @@ clippy: fmt
 	cargo clippy --all-targets --all-features -- -D warnings
 
 check: fmt clippy test build
+
+ci: fmt
+	cargo fmt --all -- --check
+	cargo run --bin generate-docs
+	git diff --exit-code docs/
+	cargo clippy --all-targets --all-features -- -D warnings
+	cargo test --workspace --all-targets
+	cargo build
 
 audit:
 	cargo audit

@@ -32,20 +32,14 @@ jobs:
           cache: true
           cache-key: ci
 
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
       - name: Generate documentation
         run: cargo run --bin generate-docs
 
       - name: Verify docs are up to date
         run: git diff --exit-code docs/
-
-      - name: Check formatting
-        run: |
-          cargo fmt --all
-          if ! git diff --quiet -- '*.rs'; then
-            echo "::error::Rust sources are not rustfmt-clean. Run 'make fmt' locally, or 'make setup-hooks' once to auto-format on commit."
-            git diff -- '*.rs'
-            exit 1
-          fi
 
       - name: Run clippy
         run: cargo clippy --all-targets --all-features -- -D warnings

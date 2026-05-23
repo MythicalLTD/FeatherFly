@@ -245,7 +245,9 @@ fn json_hooks_page() -> String {
 fn host_api_page() -> String {
     let mut macro_rows = String::new();
     for (name, purpose) in MACROS {
-        macro_rows.push_str(&format!("<tr><td><code>{name}</code></td><td>{purpose}</td></tr>"));
+        macro_rows.push_str(&format!(
+            "<tr><td><code>{name}</code></td><td>{purpose}</td></tr>"
+        ));
     }
 
     format!(

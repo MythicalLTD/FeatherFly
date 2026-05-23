@@ -107,11 +107,17 @@ fn home_href(section: Section) -> &'static str {
 }
 
 fn link(href: &str, label: &str) -> String {
-    format!(r#"<a href="{href}" class="no-underline text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100">{label}</a>"#)
+    format!(
+        r#"<a href="{href}" class="no-underline text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100">{label}</a>"#
+    )
 }
 
 fn root_nav() -> String {
-    [link("plugins/index.html", "Plugins"), link("api/index.html", "API")].join("")
+    [
+        link("plugins/index.html", "Plugins"),
+        link("api/index.html", "API"),
+    ]
+    .join("")
 }
 
 fn plugin_nav() -> String {
