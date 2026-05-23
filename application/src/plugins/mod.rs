@@ -76,6 +76,13 @@ impl PluginRegistry {
             .unwrap_or_default()
     }
 
+    pub fn has_event_hooks(&self, event: PluginEvent) -> bool {
+        self.event_bus
+            .lock()
+            .map(|bus| bus.has_event_hooks(event))
+            .unwrap_or(false)
+    }
+
     pub fn emit(&self, event: PluginEvent, payload: &[u8]) -> EmitOutcome {
         self.event_bus
             .lock()

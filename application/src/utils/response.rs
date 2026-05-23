@@ -1,5 +1,18 @@
-use crate::routes::ApiError;
 use axum::response::IntoResponse;
+use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
+
+#[derive(ToSchema, Serialize, Deserialize)]
+pub struct ApiError<'a> {
+    pub error: &'a str,
+}
+
+impl<'a> ApiError<'a> {
+    #[inline]
+    pub fn new(error: &'a str) -> Self {
+        Self { error }
+    }
+}
 
 pub type ApiResponseResult = Result<ApiResponse, ApiResponse>;
 

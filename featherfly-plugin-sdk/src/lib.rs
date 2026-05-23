@@ -1,6 +1,6 @@
 pub mod metadata;
 
-pub const FEATHERFLY_PLUGIN_API_VERSION: u32 = 4;
+pub const FEATHERFLY_PLUGIN_API_VERSION: u32 = 5;
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -10,6 +10,22 @@ pub enum PluginEvent {
     DaemonStopping = 3,
     ConfigLoaded = 4,
     PluginLoaded = 5,
+    RequestReceived = 6,
+    RequestCompleted = 7,
+    RequestNotFound = 8,
+    RequestBlocked = 9,
+    ProbeClientBlocked = 10,
+    AuthFailed = 11,
+    ConfigApplied = 12,
+    ConfigExported = 13,
+    RestartScheduled = 14,
+    PluginReloadRequested = 15,
+    UpdateChecked = 16,
+    UpdateApplied = 17,
+    UpdateApplyFailed = 18,
+    UpgradeStarted = 19,
+    UpgradeCompleted = 20,
+    UpgradeFailed = 21,
 }
 
 impl PluginEvent {
@@ -26,6 +42,22 @@ impl PluginEvent {
             Self::DaemonStopping => "daemon.stopping",
             Self::ConfigLoaded => "config.loaded",
             Self::PluginLoaded => "plugin.loaded",
+            Self::RequestReceived => "request.received",
+            Self::RequestCompleted => "request.completed",
+            Self::RequestNotFound => "request.not_found",
+            Self::RequestBlocked => "request.blocked",
+            Self::ProbeClientBlocked => "probe.client_blocked",
+            Self::AuthFailed => "auth.failed",
+            Self::ConfigApplied => "config.applied",
+            Self::ConfigExported => "config.exported",
+            Self::RestartScheduled => "restart.scheduled",
+            Self::PluginReloadRequested => "plugins.reload_requested",
+            Self::UpdateChecked => "update.checked",
+            Self::UpdateApplied => "update.applied",
+            Self::UpdateApplyFailed => "update.apply_failed",
+            Self::UpgradeStarted => "upgrade.started",
+            Self::UpgradeCompleted => "upgrade.completed",
+            Self::UpgradeFailed => "upgrade.failed",
         }
     }
 

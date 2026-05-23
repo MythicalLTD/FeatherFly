@@ -150,6 +150,12 @@ impl EventBus {
         &self.routes
     }
 
+    pub fn has_event_hooks(&self, event: PluginEvent) -> bool {
+        self.hooks
+            .get(&event.as_u32())
+            .is_some_and(|hooks| !hooks.is_empty())
+    }
+
     pub fn emit(&self, event: PluginEvent, payload: &[u8]) -> EmitOutcome {
         let mut outcome = EmitOutcome::default();
         let Some(hooks) = self.hooks.get(&event.as_u32()) else {

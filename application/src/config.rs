@@ -1,8 +1,9 @@
+use std::{path::PathBuf, sync::Arc};
+
 use anyhow::Context;
 use arc_swap::ArcSwap;
 use serde::{Deserialize, Serialize};
 use serde_default::DefaultFromSerde;
-use std::{path::PathBuf, sync::Arc};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
@@ -300,7 +301,7 @@ fn plugins_enabled_default() -> bool {
 #[derive(Debug, Clone, Deserialize, Serialize, DefaultFromSerde)]
 pub struct UpdatesConfig {
     #[serde(default = "updates_channel_default")]
-    pub channel: crate::update::UpdateChannel,
+    pub channel: crate::utils::update::UpdateChannel,
 
     #[serde(default = "updates_check_on_startup_default")]
     pub check_on_startup: bool,
@@ -309,8 +310,8 @@ pub struct UpdatesConfig {
     pub ignore_panel_upgrades: bool,
 }
 
-fn updates_channel_default() -> crate::update::UpdateChannel {
-    crate::update::UpdateChannel::Stable
+fn updates_channel_default() -> crate::utils::update::UpdateChannel {
+    crate::utils::update::UpdateChannel::Stable
 }
 
 fn updates_check_on_startup_default() -> bool {
@@ -322,7 +323,7 @@ pub struct Config {
     pub path: String,
 }
 
-pub struct ConfigGuard(#[allow(dead_code)] crate::logging::LogGuards);
+pub struct ConfigGuard(#[allow(dead_code)] crate::utils::logging::LogGuards);
 
 impl std::ops::Deref for Config {
     type Target = ArcSwap<InnerConfig>;
@@ -410,7 +411,7 @@ impl Config {
         _debug: bool,
         is_subcommand: bool,
     ) -> Result<ConfigGuard, anyhow::Error> {
-        crate::logging::init(inner, is_subcommand).map(ConfigGuard)
+        crate::utils::logging::init(inner, is_subcommand).map(ConfigGuard)
     }
 
     pub fn open_from_inner(
@@ -614,7 +615,7 @@ mod tests {
             security: SecurityConfig::default(),
         };
 
-        let error = super::Config::validate_inner(&inner).unwrap_err();
+        let error = Config::validate_inner(&inner).unwrap_err();
         assert!(error.to_string().contains("api.port"));
     }
 

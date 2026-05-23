@@ -21,46 +21,52 @@ pub fn write(output: &Path) -> std::io::Result<()> {
 }
 
 mod search {
-    pub fn all_urls() -> Vec<&'static str> {
-        vec![
-            "index.html",
-            "plugins/index.html",
-            "plugins/getting-started.html",
-            "plugins/overview.html",
-            "plugins/terminology.html",
-            "plugins/architecture.html",
-            "plugins/hooks-roadmap.html",
-            "plugins/host-api.html",
-            "plugins/macros.html",
-            "plugins/return-codes.html",
-            "plugins/source-tree.html",
-            "plugins/example.html",
-            "plugins/events/index.html",
-            "plugins/events/config-loaded.html",
-            "plugins/events/plugin-loaded.html",
-            "plugins/events/daemon-starting.html",
-            "plugins/events/daemon-started.html",
-            "plugins/events/daemon-stopping.html",
-            "plugins/config-hooks/index.html",
-            "plugins/config-hooks/mutate.html",
-            "plugins/request-hooks/index.html",
-            "plugins/request-hooks/intercept.html",
-            "plugins/request-hooks/middleware.html",
-            "plugins/routes/index.html",
-            "plugins/routes/register.html",
-            "plugins/json-hooks/index.html",
-            "plugins/json-hooks/response-body.html",
-            "plugins/json-hooks/response-actions.html",
-            "api/index.html",
-            "api/health.html",
-            "api/system.html",
-            "api/system-overview.html",
-            "api/system-plugins.html",
-            "api/system-config.html",
-            "api/system-restart.html",
-            "api/system-update.html",
-            "api/system-upgrade.html",
-            "tests/index.html",
-        ]
+    use featherfly_plugin_sdk::metadata::EVENT_DOCS;
+
+    pub fn all_urls() -> Vec<String> {
+        let mut urls = vec![
+            "index.html".into(),
+            "plugins/index.html".into(),
+            "plugins/getting-started.html".into(),
+            "plugins/overview.html".into(),
+            "plugins/terminology.html".into(),
+            "plugins/architecture.html".into(),
+            "plugins/hooks-roadmap.html".into(),
+            "plugins/host-api.html".into(),
+            "plugins/macros.html".into(),
+            "plugins/return-codes.html".into(),
+            "plugins/source-tree.html".into(),
+            "plugins/example.html".into(),
+            "plugins/events/index.html".into(),
+            "plugins/config-hooks/index.html".into(),
+            "plugins/config-hooks/mutate.html".into(),
+            "plugins/request-hooks/index.html".into(),
+            "plugins/request-hooks/intercept.html".into(),
+            "plugins/request-hooks/middleware.html".into(),
+            "plugins/routes/index.html".into(),
+            "plugins/routes/register.html".into(),
+            "plugins/json-hooks/index.html".into(),
+            "plugins/json-hooks/response-body.html".into(),
+            "plugins/json-hooks/response-actions.html".into(),
+            "api/index.html".into(),
+            "api/health.html".into(),
+            "api/system.html".into(),
+            "api/system-overview.html".into(),
+            "api/system-plugins.html".into(),
+            "api/system-config.html".into(),
+            "api/system-restart.html".into(),
+            "api/system-update.html".into(),
+            "api/system-upgrade.html".into(),
+            "tests/index.html".into(),
+        ];
+
+        for doc in EVENT_DOCS {
+            urls.push(format!(
+                "plugins/events/{}.html",
+                doc.name.replace('.', "-")
+            ));
+        }
+
+        urls
     }
 }

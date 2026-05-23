@@ -25,8 +25,11 @@ impl crate::commands::CliCommand<VersionArgs> for VersionCommand {
 
                 println!("featherfly {} ({})", crate::full_version(), crate::TARGET);
                 println!("{}", crate::GITHUB_REPOSITORY);
-                println!("releases: {}", crate::update::releases_page_url());
-                println!("nightly: {}", crate::update::nightly_download_page_url());
+                println!("releases: {}", crate::utils::update::releases_page_url());
+                println!(
+                    "nightly: {}",
+                    crate::utils::update::nightly_download_page_url()
+                );
                 println!("{}", crate::PROJECT_WEBSITE);
                 println!("license: {}", crate::PROJECT_LICENSE);
                 println!(
@@ -42,9 +45,9 @@ impl crate::commands::CliCommand<VersionArgs> for VersionCommand {
                         .map(parse_channel)
                         .transpose()?
                         .or_else(|| config.map(|config| config.load().updates.channel))
-                        .unwrap_or(crate::update::UpdateChannel::Stable);
+                        .unwrap_or(crate::utils::update::UpdateChannel::Stable);
 
-                    let status = crate::update::check_update(channel).await?;
+                    let status = crate::utils::update::check_update(channel).await?;
                     println!("channel: {:?}", status.channel);
                     println!(
                         "update available: {}",
@@ -75,11 +78,11 @@ impl crate::commands::CliCommand<VersionArgs> for VersionCommand {
     }
 }
 
-fn parse_channel(value: &str) -> Result<crate::update::UpdateChannel, anyhow::Error> {
+fn parse_channel(value: &str) -> Result<crate::utils::update::UpdateChannel, anyhow::Error> {
     match value.to_ascii_lowercase().as_str() {
-        "stable" => Ok(crate::update::UpdateChannel::Stable),
-        "nightly" => Ok(crate::update::UpdateChannel::Nightly),
-        "disabled" => Ok(crate::update::UpdateChannel::Disabled),
+        "stable" => Ok(crate::utils::update::UpdateChannel::Stable),
+        "nightly" => Ok(crate::utils::update::UpdateChannel::Nightly),
+        "disabled" => Ok(crate::utils::update::UpdateChannel::Disabled),
         _ => anyhow::bail!("invalid update channel: {value}"),
     }
 }

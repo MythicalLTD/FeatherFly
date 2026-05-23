@@ -11,7 +11,17 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{config::ProbeProtectionConfig, response::ApiResponse, routes::State as AppStateArc};
+use crate::{
+    config::ProbeProtectionConfig,
+    routes::State as AppStateArc,
+    utils::{
+        plugin_events::{
+            self, ProbeBlockedPayload, RequestCompletedPayload, RequestPayload, emit_json,
+        },
+        response::ApiResponse,
+    },
+};
+use featherfly_plugin_sdk::PluginEvent;
 
 pub struct ProbeGuard {
     clients: Mutex<HashMap<IpAddr, ClientRecord>>,
@@ -123,55 +133,112 @@ pub async fn middleware(
 ) -> Response {
     let config = state.config.load().security.probe_protection.clone();
     let ip = peer.ip();
+    let client_ip = plugin_events::ip_string(ip);
+    let started = Instant::now();
 
     if config.enabled && state.probe_guard.is_blocked(ip, &config) {
         if config.log_blocked {
             tracing::warn!(
-                client_ip = %ip,
+                client_ip = %client_ip,
                 "rejected request from blocked probe client"
             );
         }
+        emit_json(
+            &state.plugins,
+            PluginEvent::RequestBlocked,
+            &RequestPayload {
+                client_ip: &client_ip,
+                method: req.method().as_str(),
+                path: req.uri().path(),
+                query: req.uri().query().unwrap_or(""),
+            },
+        );
         return ApiResponse::error("too many unknown route requests")
             .with_status(StatusCode::TOO_MANY_REQUESTS)
             .into_response();
     }
 
-    let method = req.method().clone();
+    let method = req.method().as_str().to_string();
     let path = req.uri().path().to_string();
     let query = req.uri().query().unwrap_or("").to_string();
 
+    emit_json(
+        &state.plugins,
+        PluginEvent::RequestReceived,
+        &RequestPayload {
+            client_ip: &client_ip,
+            method: &method,
+            path: &path,
+            query: &query,
+        },
+    );
+
+    let uri = if query.is_empty() {
+        path.clone()
+    } else {
+        format!("{path}?{query}")
+    };
+
     let response = next.run(req).await;
     let status = response.status();
+    let duration_ms = started.elapsed().as_millis() as u64;
 
     if config.enabled && status == StatusCode::NOT_FOUND {
         if let Some(event) = state.probe_guard.record_unknown_route(ip, &config) {
             tracing::warn!(
-                client_ip = %ip,
+                client_ip = %client_ip,
                 unknown_hits = event.unknown_hits,
                 window_secs = config.window_secs,
                 block_secs = config.block_secs,
-                "blocking client after unknown-route probe burst"
+                "blocking probe client {client_ip} after {} unknown routes",
+                event.unknown_hits
+            );
+            emit_json(
+                &state.plugins,
+                PluginEvent::ProbeClientBlocked,
+                &ProbeBlockedPayload {
+                    client_ip: &client_ip,
+                    unknown_hits: event.unknown_hits,
+                    block_secs: config.block_secs,
+                },
             );
         } else if config.log_unknown_routes {
             tracing::debug!(
-                client_ip = %ip,
-                method = %method,
-                path = %path,
-                query = %query,
+                client_ip = %client_ip,
                 status = status.as_u16(),
-                "unknown route request"
+                "unknown route {method} from {client_ip} {uri}"
             );
         }
+        emit_json(
+            &state.plugins,
+            PluginEvent::RequestNotFound,
+            &RequestPayload {
+                client_ip: &client_ip,
+                method: &method,
+                path: &path,
+                query: &query,
+            },
+        );
     } else if config.log_requests {
         tracing::debug!(
-            client_ip = %ip,
-            method = %method,
-            path = %path,
-            query = %query,
+            client_ip = %client_ip,
             status = status.as_u16(),
-            "http request"
+            "http {method} from {client_ip} {uri}"
         );
     }
+
+    emit_json(
+        &state.plugins,
+        PluginEvent::RequestCompleted,
+        &RequestCompletedPayload {
+            client_ip: &client_ip,
+            method: &method,
+            path: &path,
+            query: &query,
+            status: status.as_u16(),
+            duration_ms,
+        },
+    );
 
     response
 }
@@ -179,7 +246,6 @@ pub async fn middleware(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::ProbeProtectionConfig;
 
     fn test_config(max_404s: u32) -> ProbeProtectionConfig {
         ProbeProtectionConfig {

@@ -602,36 +602,10 @@ const PLUGIN_GROUPS: &[NavGroup] = &[
     NavGroup {
         overview: Some(NavItem {
             id: "events",
-            label: "Lifecycle events",
+            label: "Events (21)",
             path: "plugins/events/index.html",
         }),
-        children: &[
-            NavItem {
-                id: "event-config-loaded",
-                label: "config.loaded",
-                path: "plugins/events/config-loaded.html",
-            },
-            NavItem {
-                id: "event-plugin-loaded",
-                label: "plugin.loaded",
-                path: "plugins/events/plugin-loaded.html",
-            },
-            NavItem {
-                id: "event-daemon-starting",
-                label: "daemon.starting",
-                path: "plugins/events/daemon-starting.html",
-            },
-            NavItem {
-                id: "event-daemon-started",
-                label: "daemon.started",
-                path: "plugins/events/daemon-started.html",
-            },
-            NavItem {
-                id: "event-daemon-stopping",
-                label: "daemon.stopping",
-                path: "plugins/events/daemon-stopping.html",
-            },
-        ],
+        children: &[],
     },
     NavGroup {
         overview: Some(NavItem {

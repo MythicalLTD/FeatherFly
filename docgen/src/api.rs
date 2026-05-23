@@ -27,7 +27,7 @@ pub const GROUPS: &[ApiGroup] = &[
         title: "Health",
         summary: "Unauthenticated liveness probe for load balancers and panels.",
         slug: "health",
-        router_source: "application/src/routes/health.rs",
+        router_source: "application/src/routes/mod.rs",
         routes: &[RouteDoc {
             method: "GET",
             path: "/health",
@@ -36,7 +36,7 @@ pub const GROUPS: &[ApiGroup] = &[
             description: "Returns daemon status, service name, and build version. No authentication. Use for uptime monitors and readiness probes.",
             auth: "None",
             response: r#"{"status":"ok","service":"featherfly","version":"0.1.0 (abc1234)"}"#,
-            source: "application/src/routes/health.rs",
+            source: "application/src/controllers/health.rs",
         }],
     },
     ApiGroup {
@@ -53,7 +53,7 @@ pub const GROUPS: &[ApiGroup] = &[
             description: "High-level host facts: architecture, CPU count, kernel, OS, daemon version. Includes an `actions` array the panel uses for follow-up steps (overview, update check, plugins, diagnostics).",
             auth: "Bearer token",
             response: r#"{"architecture":"x86_64","cpu_count":4,"kernel_version":"...","os":"linux","version":"0.1.0","actions":[...]}"#,
-            source: "application/src/routes/api/system/mod.rs",
+            source: "application/src/controllers/system/root.rs",
         }],
     },
     ApiGroup {
@@ -70,7 +70,7 @@ pub const GROUPS: &[ApiGroup] = &[
             description: "Live CPU brand/frequency, memory totals, process RSS, container detection, and local time. Heavier than `/api/system` — use when the panel needs charts.",
             auth: "Bearer token",
             response: r#"{"version":"0.1.0","local_time":"...","container_type":"None","cpu":{...},"memory":{...}}"#,
-            source: "application/src/routes/api/system/overview.rs",
+            source: "application/src/controllers/system/overview.rs",
         }],
     },
     ApiGroup {
@@ -88,7 +88,7 @@ pub const GROUPS: &[ApiGroup] = &[
                 description: "Lists every loaded `.so` plugin with name, version, hook count, and path. Returns lifecycle events, JSON targets, request phases, plugin route count, and loaded plugin summaries.",
                 auth: "Bearer token",
                 response: r#"{"enabled":true,"directory":"/var/lib/featherfly/plugins","hooks":3,"events":["config.loaded",...],"json_targets":["json.response","json.actions"],"request_phases":["request.intercept","middleware.inject"],"plugin_routes":1,"plugins":[...],"actions":[...]}"#,
-                source: "application/src/routes/api/system/plugins.rs",
+                source: "application/src/controllers/system/plugins.rs",
             },
             RouteDoc {
                 method: "POST",
@@ -98,7 +98,7 @@ pub const GROUPS: &[ApiGroup] = &[
                 description: "Schedules a daemon restart so newly installed or updated `.so` files are loaded. Plugins are only read at startup — this endpoint does not hot-reload in-process. Requires `remote.restart: true`. Returns 202 Accepted.",
                 auth: "Bearer token",
                 response: r#"{"scheduled":true,"delay_ms":750,"note":"plugins are loaded at startup; a daemon restart is required to pick up changes"}"#,
-                source: "application/src/routes/api/system/plugins.rs",
+                source: "application/src/controllers/system/plugins.rs",
             },
         ],
     },
@@ -117,7 +117,7 @@ pub const GROUPS: &[ApiGroup] = &[
                 description: "Returns the active config as YAML. The bearer token is redacted as `***`. Requires `remote.config_edit: true` (also gates writes).",
                 auth: "Bearer token",
                 response: r#"{"path":"/etc/featherfly/config.yml","yaml":"app_name: FeatherFly\n...","editable":true}"#,
-                source: "application/src/routes/api/system/config.rs",
+                source: "application/src/controllers/system/config.rs",
             },
             RouteDoc {
                 method: "PUT",
@@ -127,7 +127,7 @@ pub const GROUPS: &[ApiGroup] = &[
                 description: "Validates and writes a full config YAML snapshot. Set `restart_if_required: true` to auto-restart when listen address, logging, plugins directory, or similar fields change. Token value `***` preserves the existing secret.",
                 auth: "Bearer token",
                 response: r#"{"applied":true,"requires_restart":false,"restart_reasons":[],"restart_scheduled":false}"#,
-                source: "application/src/routes/api/system/config.rs",
+                source: "application/src/controllers/system/config.rs",
             },
         ],
     },
@@ -145,7 +145,7 @@ pub const GROUPS: &[ApiGroup] = &[
             description: "Spawns a replacement process with the same argv and exits. Optional `delay_ms` (default 0) and `reason` for audit logs. Requires `remote.restart: true`. Returns 202 Accepted.",
             auth: "Bearer token",
             response: r#"{"scheduled":true,"delay_ms":0}"#,
-            source: "application/src/routes/api/system/restart.rs",
+            source: "application/src/controllers/system/restart.rs",
         }],
     },
     ApiGroup {
@@ -163,7 +163,7 @@ pub const GROUPS: &[ApiGroup] = &[
                 description: "Queries GitHub releases for the configured channel (stable/nightly). Always returns 200 — set `check_ok: false` with a `message` when GitHub is unreachable or no release exists yet. Includes `download_url`, `sha256`, and version/commit fields for the panel to drive upgrades.",
                 auth: "Bearer token",
                 response: r#"{"check_ok":true,"update_available":false,"current_version":"0.1.0","current_commit":"abc1234","latest_version":null,"download_url":null,"sha256":null,"message":null}"#,
-                source: "application/src/routes/api/system/update.rs",
+                source: "application/src/controllers/system/update.rs",
             },
             RouteDoc {
                 method: "POST",
@@ -173,7 +173,7 @@ pub const GROUPS: &[ApiGroup] = &[
                 description: "Downloads the platform binary from the latest GitHub release, verifies SHA256, replaces the running executable, and optionally restarts the daemon. Requires `remote.upgrade: true`. Returns 202 Accepted while the download runs in the background.",
                 auth: "Bearer token",
                 response: r#"{"scheduled":true,"restart":true,"delay_ms":0,"channel":"stable","update_available":true}"#,
-                source: "application/src/routes/api/system/update.rs",
+                source: "application/src/controllers/system/update.rs",
             },
         ],
     },
@@ -191,7 +191,7 @@ pub const GROUPS: &[ApiGroup] = &[
             description: "Downloads a replacement binary from `url`, verifies SHA-256, replaces the running executable, and spawns a restart command. Rejected in containerized environments. Returns 202 Accepted when the background upgrade task starts.",
             auth: "Bearer token",
             response: r#"{"applied":true}"#,
-            source: "application/src/routes/api/system/upgrade.rs",
+            source: "application/src/controllers/system/upgrade.rs",
         }],
     },
 ];
@@ -261,8 +261,8 @@ fn overview_page(openapi: &utoipa::openapi::OpenApi) -> String {
         version = openapi.info.version,
         cards = cards,
         router = html::github_source("application/src/routes/mod.rs", "Route tree"),
-        auth = html::github_source("application/src/auth.rs", "Auth middleware"),
-        response = html::github_source("application/src/plugins/middleware.rs", "JSON hook middleware"),
+        auth = html::github_source("application/src/middlewares/auth.rs", "Auth middleware"),
+        response = html::github_source("application/src/utils/response.rs", "JSON responses"),
     )
 }
 

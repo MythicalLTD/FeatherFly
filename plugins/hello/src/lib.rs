@@ -9,6 +9,8 @@ use featherfly_plugin_sdk::{
 extern "C" fn init(host: *const HostApi) -> i32 {
     hook!(host, PluginEvent::DaemonStarted, on_daemon_started);
     hook!(host, PluginEvent::DaemonStopping, on_daemon_stopping);
+    hook!(host, PluginEvent::RequestNotFound, on_request_not_found);
+    hook!(host, PluginEvent::ProbeClientBlocked, on_probe_blocked);
     hook_config!(host, on_config_mutate);
     hook_request!(
         host,
@@ -41,7 +43,7 @@ extern "C" fn init(host: *const HostApi) -> i32 {
         on_hello_route
     );
     unsafe {
-        log_info(host, "hello plugin registered v4 hooks");
+        log_info(host, "hello plugin registered v5 hooks");
     }
     0
 }
@@ -51,6 +53,20 @@ extern "C" fn on_daemon_started(_ctx: *const EventContext) -> HookResult {
 }
 
 extern "C" fn on_daemon_stopping(_ctx: *const EventContext) -> HookResult {
+    HookResult::r#continue()
+}
+
+extern "C" fn on_request_not_found(ctx: *const EventContext) -> HookResult {
+    let ctx = unsafe { &*ctx };
+    let payload = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
+    let _json = std::str::from_utf8(payload).unwrap_or_default();
+    HookResult::r#continue()
+}
+
+extern "C" fn on_probe_blocked(ctx: *const EventContext) -> HookResult {
+    let ctx = unsafe { &*ctx };
+    let payload = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
+    let _json = std::str::from_utf8(payload).unwrap_or_default();
     HookResult::r#continue()
 }
 
@@ -93,7 +109,7 @@ extern "C" fn on_api_middleware(_ctx: *const RequestHookContext) -> i32 {
 
 extern "C" fn on_hello_route(ctx: *const RouteHandlerContext) -> i32 {
     let ctx = unsafe { &*ctx };
-    let body = br#"{"plugin":"hello","api_version":4,"route":"GET /plugins/hello"}"#;
+    let body = br#"{"plugin":"hello","api_version":5,"route":"GET /plugins/hello"}"#;
     write_route_response(ctx, 200, body)
 }
 

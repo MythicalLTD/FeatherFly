@@ -9,7 +9,7 @@ enum ChannelArg {
     Nightly,
 }
 
-impl From<ChannelArg> for crate::update::UpdateChannel {
+impl From<ChannelArg> for crate::utils::update::UpdateChannel {
     fn from(value: ChannelArg) -> Self {
         match value {
             ChannelArg::Stable => Self::Stable,
@@ -65,7 +65,7 @@ async fn run_check(
     args: UpdateArgs,
 ) -> Result<i32, anyhow::Error> {
     let channel = resolve_channel(config, args.channel);
-    let status = crate::update::check_update(channel).await?;
+    let status = crate::utils::update::check_update(channel).await?;
 
     print_status(&status);
 
@@ -95,7 +95,7 @@ async fn run_apply(
     }
 
     let channel = resolve_channel(config, args.channel);
-    let result = crate::update::apply_update(channel).await?;
+    let result = crate::utils::update::apply_update(channel).await?;
 
     println!("installed update to {}", result.binary_path);
 
@@ -115,17 +115,17 @@ async fn run_apply(
 fn resolve_channel(
     config: Option<&std::sync::Arc<crate::config::Config>>,
     override_channel: Option<ChannelArg>,
-) -> crate::update::UpdateChannel {
+) -> crate::utils::update::UpdateChannel {
     if let Some(channel) = override_channel {
         return channel.into();
     }
 
     config
         .map(|config| config.load().updates.channel)
-        .unwrap_or(crate::update::UpdateChannel::Stable)
+        .unwrap_or(crate::utils::update::UpdateChannel::Stable)
 }
 
-fn print_status(status: &crate::update::UpdateStatus) {
+fn print_status(status: &crate::utils::update::UpdateStatus) {
     println!("channel: {:?}", status.channel);
     println!(
         "current: {} ({})",

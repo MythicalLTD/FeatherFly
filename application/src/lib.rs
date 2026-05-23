@@ -1,15 +1,13 @@
-pub mod actions;
 pub mod api_spec;
-pub mod auth;
 pub mod commands;
 pub mod config;
+pub mod controllers;
+pub mod daemon;
 pub mod daemon_control;
-pub mod logging;
+pub mod middlewares;
 pub mod plugins;
-pub mod probe_guard;
-pub mod response;
 pub mod routes;
-pub mod update;
+pub mod utils;
 
 #[cfg(not(unix))]
 compile_error!("FeatherFly only supports Unix-like systems");
@@ -33,5 +31,3 @@ pub fn full_version() -> String {
         format!("{VERSION}:{GIT_COMMIT}@{GIT_BRANCH}")
     }
 }
-
-pub mod daemon;

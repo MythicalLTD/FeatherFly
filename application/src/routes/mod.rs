@@ -1,11 +1,9 @@
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::{sync::Arc, time::Instant};
 use utoipa::ToSchema;
 use utoipa_axum::router::OpenApiRouter;
 
 pub mod api;
-
-mod health;
 
 #[derive(Debug, ToSchema, Serialize, Clone, Copy)]
 #[serde(rename_all = "snake_case")]
@@ -22,19 +20,7 @@ pub struct AppState {
     pub version: String,
     pub config: Arc<crate::config::Config>,
     pub plugins: crate::plugins::PluginRegistry,
-    pub probe_guard: crate::probe_guard::ProbeGuard,
-}
-
-#[derive(ToSchema, Serialize, Deserialize)]
-pub struct ApiError<'a> {
-    pub error: &'a str,
-}
-
-impl<'a> ApiError<'a> {
-    #[inline]
-    pub fn new(error: &'a str) -> Self {
-        Self { error }
-    }
+    pub probe_guard: crate::middlewares::probe::ProbeGuard,
 }
 
 pub type State = Arc<AppState>;
@@ -42,7 +28,7 @@ pub type GetState = axum::extract::State<State>;
 
 pub fn router(state: &State) -> OpenApiRouter<State> {
     OpenApiRouter::new()
-        .routes(utoipa_axum::routes!(health::route))
+        .routes(utoipa_axum::routes!(crate::controllers::health::get))
         .nest("/api", api::router(state))
         .with_state(state.clone())
 }

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use utoipa_axum::router::OpenApiRouter;
 
-use crate::response::ApiResponse;
+use crate::utils::response::ApiResponse;
 
 pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
     let raw = match std::fs::read(config_path) {
@@ -102,7 +102,7 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
         version: crate::full_version(),
         config: Arc::clone(&config),
         plugins: plugin_registry,
-        probe_guard: crate::probe_guard::ProbeGuard::new(),
+        probe_guard: crate::middlewares::probe::ProbeGuard::new(),
     });
 
     let app = OpenApiRouter::new()
@@ -115,7 +115,7 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
         })
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
-            crate::probe_guard::middleware,
+            crate::middlewares::probe::middleware,
         ))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
@@ -176,11 +176,11 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
         );
 
         if config.load().updates.check_on_startup
-            && config.load().updates.channel != crate::update::UpdateChannel::Disabled
+            && config.load().updates.channel != crate::utils::update::UpdateChannel::Disabled
         {
             let channel = config.load().updates.channel;
             tokio::spawn(async move {
-                match crate::update::check_update(channel).await {
+                match crate::utils::update::check_update(channel).await {
                     Ok(status) if status.update_available => {
                         tracing::info!(
                             channel = ?status.channel,
