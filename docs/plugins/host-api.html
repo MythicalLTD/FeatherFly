@@ -38,7 +38,22 @@
 </header>
   <main class="mx-auto max-w-3xl px-4 py-8 sm:px-6">
     <article class="prose-docs"><h1>Host API</h1><p>Functions and structs passed to your plugin at init.</p>
-<p>During init, FeatherFly passes a HostApi struct:</p><p>- api_version — must match FEATHERFLY_PLUGIN_API_VERSION</p><p>- register_hook — register a lifecycle event callback</p><p>- register_json_hook — register a JSON mutation callback</p><p>- log_info — write an info line to the daemon log</p><p>Register hooks only inside init. Callback pointers are kept until shutdown.</p><p>init return codes: 0 = success. Any other value fails plugin load.</p><p>JSON hook return codes:</p><p>- JSON_MUTATE_MODIFIED (0) — output written via write_json_output</p><p>- JSON_MUTATE_UNCHANGED (1) — keep input unchanged</p><p>- Negative — error; input is kept</p>
+<p>During init, FeatherFly passes a HostApi struct:</p>
+<ul>
+<li>api_version — must match FEATHERFLY_PLUGIN_API_VERSION</li>
+<li>register_hook — register a lifecycle event callback</li>
+<li>register_json_hook — register a JSON mutation callback</li>
+<li>log_info — write an info line to the daemon log</li>
+</ul>
+<p>Register hooks only inside init. Callback pointers are kept until shutdown.</p>
+<p>init return codes: 0 = success. Any other value fails plugin load.</p>
+<p>JSON hook return codes:</p>
+<ul>
+<li>JSON_MUTATE_MODIFIED (0) — output written via write_json_output</li>
+<li>JSON_MUTATE_UNCHANGED (1) — keep input unchanged</li>
+<li>Negative — error; input is kept</li>
+</ul>
+
 <h2>SDK macros</h2>
 <table><thead><tr><th>Macro</th><th>Purpose</th></tr></thead><tbody><tr><td><code>declare_plugin!</code></td><td>Exports featherfly_plugin_entry with name, version, init, and optional shutdown.</td></tr><tr><td><code>hook!</code></td><td>Registers a lifecycle event handler during init. Returns init error code if registration fails.</td></tr><tr><td><code>hook_json!</code></td><td>Registers a JSON mutation handler for a route prefix during init.</td></tr></tbody></table>
 <h2>Logging</h2>

@@ -38,11 +38,30 @@
 </header>
   <main class="mx-auto max-w-3xl px-4 py-8 sm:px-6">
     <article class="prose-docs"><h1>Overview</h1><p>How FeatherFly plugins work.</p>
-<p>FeatherFly plugins are native shared libraries (`.so` files) loaded at daemon startup. They extend the daemon without recompiling FeatherFly itself.</p><p>A plugin exports one symbol: `featherfly_plugin_entry`. The daemon loads each `.so`, checks the plugin API version, calls `init`, and keeps the library in memory until shutdown.</p><p>Plugins register hooks during `init`. There are two hook systems:</p><p>1. **Lifecycle events** — callbacks fired at fixed points (config loaded, daemon started, etc.).</p><p>2. **JSON mutation hooks** — callbacks that receive JSON, may rewrite it, and return modified output for HTTP responses.</p><p>All hooks for a given target run in **plugin load order** (alphabetical by filename in the plugins directory).</p>
+<p>FeatherFly plugins are native shared libraries (<code>.so</code> files) loaded at daemon startup. They extend the daemon without recompiling FeatherFly itself.</p>
+<p>A plugin exports one symbol: <code>featherfly_plugin_entry</code>. The daemon loads each <code>.so</code>, checks the plugin API version, calls <code>init</code>, and keeps the library in memory until shutdown.</p>
+<p>Plugins register hooks during <code>init</code>. There are two hook systems:</p>
+<ol>
+<li><strong>Lifecycle events</strong> — callbacks fired at fixed points (config loaded, daemon started, etc.).</li>
+<li><strong>JSON mutation hooks</strong> — callbacks that receive JSON, may rewrite it, and return modified output for HTTP responses.</li>
+</ol>
+<p>All hooks for a given target run in <strong>plugin load order</strong> (alphabetical by filename in the plugins directory).</p>
+
 <h2>Capabilities</h2>
 <ul><li>Listen to daemon lifecycle events (startup, shutdown, config load)</li><li>Run code when other plugins finish loading</li><li>Log messages to the daemon log via log_info</li><li>Modify JSON API response bodies before they are sent to clients</li><li>Inject, remove, or rewrite action steps in API responses</li><li>Cancel remaining handlers for the same event (lifecycle hooks only)</li></ul>
 <h2>Daemon lifecycle (hook order)</h2>
-<p>1. Daemon reads config.yml</p><p>2. `config.loaded` event fires (payload = raw YAML bytes)</p><p>3. Each `.so` in the plugins directory is loaded</p><p>4. For each plugin: `init(host)` runs — register hooks here</p><p>5. After each plugin init: `plugin.loaded` event fires (payload = plugin name)</p><p>6. `daemon.starting` fires before HTTP routes are wired</p><p>7. HTTP server starts listening</p><p>8. `daemon.started` fires (payload = listen address, e.g. `127.0.0.1:9090`)</p><p>9. On shutdown: `daemon.stopping` fires, then each plugin's `shutdown` runs</p>
+<ol>
+<li>Daemon reads config.yml</li>
+<li><code>config.loaded</code> event fires (payload = raw YAML bytes)</li>
+<li>Each <code>.so</code> in the plugins directory is loaded</li>
+<li>For each plugin: <code>init(host)</code> runs — register hooks here</li>
+<li>After each plugin init: <code>plugin.loaded</code> event fires (payload = plugin name)</li>
+<li><code>daemon.starting</code> fires before HTTP routes are wired</li>
+<li>HTTP server starts listening</li>
+<li><code>daemon.started</code> fires (payload = listen address, e.g. <code>127.0.0.1:9090</code>)</li>
+<li>On shutdown: <code>daemon.stopping</code> fires, then each plugin's <code>shutdown</code> runs</li>
+</ol>
+
 <h2>Hook systems</h2>
 <p><strong>Lifecycle events</strong> — fixed points in daemon startup/shutdown. Callback signature: <code>extern "C" fn(*const EventContext) -&gt; HookResult</code>.</p>
 <p><strong>JSON mutation</strong> — runs on every JSON HTTP response matching your route prefix. Callback signature: <code>extern "C" fn(*const JsonMutateContext) -&gt; i32</code>.</p>

@@ -38,7 +38,27 @@
 </header>
   <main class="mx-auto max-w-3xl px-4 py-8 sm:px-6">
     <article class="prose-docs"><h1>Getting started</h1><p>Create, build, and install your first plugin.</p>
-<p>**Requirements:** same OS and CPU architecture as the FeatherFly binary (e.g. linux x86_64 musl build needs a musl-linked plugin).</p><p>```toml</p><p>[lib]</p><p>crate-type = ["cdylib"]</p><p>[dependencies]</p><p>featherfly-plugin-sdk = { path = "../featherfly-plugin-sdk" }</p><p>serde_json = "1"</p><p>```</p><p>```bash</p><p>featherfly plugin build ./my-plugin</p><p>featherfly plugin install ./my-plugin   # copies .so to plugins dir</p><p>featherfly plugin ship ./my-plugin      # build + install</p><p>make plugin-ship PLUGIN=plugins/hello</p><p>```</p><p>**Paths**</p><p>- Production: `/var/lib/featherfly/plugins/*.so`</p><p>- Debug (`--debug`): `./data/plugins/*.so`</p><p>- Config: `system.plugins_directory`, `plugins.enabled`</p><p>**Version mismatch:** if `descriptor.api_version` ≠ daemon API version, the plugin is skipped with a warning.</p></article>
+<p><strong>Requirements:</strong> same OS and CPU architecture as the FeatherFly binary (e.g. linux x86_64 musl build needs a musl-linked plugin).</p>
+<pre><code class="language-toml">[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+featherfly-plugin-sdk = { path = "../featherfly-plugin-sdk" }
+serde_json = "1"
+</code></pre>
+<pre><code class="language-bash">featherfly plugin build ./my-plugin
+featherfly plugin install ./my-plugin   # copies .so to plugins dir
+featherfly plugin ship ./my-plugin      # build + install
+make plugin-ship PLUGIN=plugins/hello
+</code></pre>
+<p><strong>Paths</strong></p>
+<ul>
+<li>Production: <code>/var/lib/featherfly/plugins/*.so</code></li>
+<li>Debug (<code>--debug</code>): <code>./data/plugins/*.so</code></li>
+<li>Config: <code>system.plugins_directory</code>, <code>plugins.enabled</code></li>
+</ul>
+<p><strong>Version mismatch:</strong> if <code>descriptor.api_version</code> ≠ daemon API version, the plugin is skipped with a warning.</p>
+</article>
   </main>
   <footer class="border-t border-zinc-200 dark:border-zinc-800 py-6 text-center text-sm text-zinc-500">
     FeatherFly · <a href="https://github.com/MythicalLTD/featherfly">GitHub</a>

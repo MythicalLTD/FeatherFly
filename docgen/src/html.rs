@@ -157,16 +157,21 @@ pub fn link_list(items: &[(&str, &str, &str)]) -> String {
     out
 }
 
+pub fn markdown(text: &str) -> String {
+    use pulldown_cmark::{Options, Parser, html};
+
+    let mut options = Options::empty();
+    options.insert(Options::ENABLE_STRIKETHROUGH);
+    options.insert(Options::ENABLE_TABLES);
+
+    let parser = Parser::new_ext(text, options);
+    let mut output = String::new();
+    html::push_html(&mut output, parser);
+    output
+}
+
 pub fn text_block(text: &str) -> String {
-    text.lines()
-        .map(|line| {
-            if line.is_empty() {
-                String::new()
-            } else {
-                format!("<p>{line}</p>")
-            }
-        })
-        .collect::<String>()
+    markdown(text)
 }
 
 pub fn example_block(title: &str, summary: &str, register: &str, handler: &str) -> String {
