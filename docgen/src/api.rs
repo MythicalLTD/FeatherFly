@@ -87,7 +87,9 @@ fn endpoints_page(openapi: &utoipa::openapi::OpenApi) -> String {
     )
 }
 
-fn operations(item: &utoipa::openapi::path::PathItem) -> [(&'static str, Option<&utoipa::openapi::path::Operation>); 5] {
+fn operations(
+    item: &utoipa::openapi::path::PathItem,
+) -> [(&'static str, Option<&utoipa::openapi::path::Operation>); 5] {
     [
         ("get", item.get.as_ref()),
         ("post", item.post.as_ref()),

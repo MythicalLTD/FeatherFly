@@ -1,5 +1,5 @@
 use crate::html;
-use featherfly_plugin_sdk::metadata::{JSON_HOOK_DOCS, EVENT_DOCS};
+use featherfly_plugin_sdk::metadata::{EVENT_DOCS, JSON_HOOK_DOCS};
 use std::path::Path;
 
 pub fn generate_plugin_docs(output: &Path) -> std::io::Result<()> {
@@ -23,11 +23,7 @@ pub fn generate_plugin_docs(output: &Path) -> std::io::Result<()> {
         ),
     )?;
 
-    html::write(
-        &output.join("events.html"),
-        "Plugin Events",
-        &events_page(),
-    )?;
+    html::write(&output.join("events.html"), "Plugin Events", &events_page())?;
 
     html::write(
         &output.join("json-hooks.html"),

@@ -7,11 +7,11 @@ mod update;
 mod upgrade;
 
 mod get {
+    use crate::actions::{ApiAction, system_actions};
     use crate::{
         response::{ApiResponse, ApiResponseResult},
         routes::GetState,
     };
-    use crate::actions::{system_actions, ApiAction};
     use serde::Serialize;
     use utoipa::ToSchema;
 

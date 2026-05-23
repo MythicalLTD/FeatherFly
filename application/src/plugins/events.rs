@@ -34,19 +34,11 @@ impl EventBus {
         Self::default()
     }
 
-    pub fn register(
-        &mut self,
-        plugin_name: impl Into<String>,
-        event: u32,
-        callback: HookCallback,
-    ) {
-        self.hooks
-            .entry(event)
-            .or_default()
-            .push(RegisteredHook {
-                plugin: plugin_name.into(),
-                callback,
-            });
+    pub fn register(&mut self, plugin_name: impl Into<String>, event: u32, callback: HookCallback) {
+        self.hooks.entry(event).or_default().push(RegisteredHook {
+            plugin: plugin_name.into(),
+            callback,
+        });
     }
 
     pub fn register_json_hook(

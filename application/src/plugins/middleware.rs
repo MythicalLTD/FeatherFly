@@ -1,10 +1,10 @@
+use crate::routes::State as AppState;
 use axum::{
     body::Body,
     extract::{Request, State},
-    http::{header, Response},
+    http::{Response, header},
     middleware::Next,
 };
-use crate::routes::State as AppState;
 
 pub async fn response_middleware(
     State(state): State<AppState>,

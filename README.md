@@ -12,8 +12,11 @@ cargo build --release
 
 ```bash
 cp config.example.yml config.yml
+make setup-hooks   # once: auto-rustfmt before every git commit
 make debug
 ```
+
+`make build`, `make test`, and other Make targets run `cargo fmt` automatically.
 
 ## Install (production)
 

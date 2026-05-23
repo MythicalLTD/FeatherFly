@@ -92,7 +92,10 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
         tracing::info!("http listening on {}", address);
 
         if !config.load().api.disable_openapi_docs {
-            tracing::info!("openapi schema available at http://{}/openapi.json", address);
+            tracing::info!(
+                "openapi schema available at http://{}/openapi.json",
+                address
+            );
             tracing::info!("human docs at {}", crate::DOCS_WEBSITE);
         }
 

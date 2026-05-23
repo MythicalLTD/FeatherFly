@@ -1,29 +1,34 @@
-.PHONY: debug build release run test fmt clippy check audit plugin plugin-ship docs
+.PHONY: debug build release run test fmt clippy check audit plugin plugin-ship docs setup-hooks
 
 CARGO_RUN = cargo run -q --bin featherfly --
-
-debug:
-	$(CARGO_RUN) --debug
-
-build:
-	cargo build
-
-release:
-	cargo build --release
-
-run:
-	cargo run --bin featherfly
-
-docs:
-	cargo run --bin generate-docs
-
-test:
-	cargo test --workspace --all-targets
 
 fmt:
 	cargo fmt --all
 
-clippy:
+setup-hooks:
+	chmod +x .githooks/pre-commit
+	git config core.hooksPath .githooks
+	@echo "git hooks installed (.githooks/pre-commit runs cargo fmt before each commit)"
+
+debug: fmt
+	$(CARGO_RUN) --debug
+
+build: fmt
+	cargo build
+
+release: fmt
+	cargo build --release
+
+run: fmt
+	cargo run --bin featherfly
+
+docs: fmt
+	cargo run --bin generate-docs
+
+test: fmt
+	cargo test --workspace --all-targets
+
+clippy: fmt
 	cargo clippy --all-targets --all-features -- -D warnings
 
 check: fmt clippy test build
@@ -33,8 +38,8 @@ audit:
 
 PLUGIN ?= plugins/hello
 
-plugin:
+plugin: fmt
 	$(CARGO_RUN) plugin build $(PLUGIN)
 
-plugin-ship:
+plugin-ship: fmt
 	$(CARGO_RUN) plugin ship $(PLUGIN)

@@ -1,4 +1,4 @@
-use crate::{JsonMutateTarget, PluginEvent, FEATHERFLY_PLUGIN_API_VERSION};
+use crate::{FEATHERFLY_PLUGIN_API_VERSION, JsonMutateTarget, PluginEvent};
 
 #[derive(Debug, Clone, Copy)]
 pub struct EventDoc {
@@ -99,8 +99,7 @@ pub const JSON_HOOK_DOCS: &[JsonHookDoc] = &[
         summary: "Mutate the full JSON response object before it is sent.",
         input: "The serialized JSON response body as an object.",
         route_matching: "Prefix match on the request path. Use `/api/system` or `*` for all JSON routes.",
-        register_example:
-            "hook_json!(host, JsonMutateTarget::ResponseBody, \"/api/system\", on_system_body);",
+        register_example: "hook_json!(host, JsonMutateTarget::ResponseBody, \"/api/system\", on_system_body);",
         handler_example: r#"extern "C" fn on_system_body(ctx: *const JsonMutateContext) -> i32 {
     let ctx = unsafe { &*ctx };
     let input = unsafe { std::slice::from_raw_parts(ctx.json_in_ptr, ctx.json_in_len) };
@@ -122,8 +121,7 @@ pub const JSON_HOOK_DOCS: &[JsonHookDoc] = &[
         summary: "Mutate only the top-level `actions` array on API responses.",
         input: "A JSON array of action objects with `id`, `label`, and optional `step` fields.",
         route_matching: "Prefix match on the request path. Runs after body hooks; changes are merged back into the response.",
-        register_example:
-            "hook_json!(host, JsonMutateTarget::ResponseActions, \"/api/system\", on_system_actions);",
+        register_example: "hook_json!(host, JsonMutateTarget::ResponseActions, \"/api/system\", on_system_actions);",
         handler_example: r#"extern "C" fn on_system_actions(ctx: *const JsonMutateContext) -> i32 {
     let ctx = unsafe { &*ctx };
     let input = unsafe { std::slice::from_raw_parts(ctx.json_in_ptr, ctx.json_in_len) };

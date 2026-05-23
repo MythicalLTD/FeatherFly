@@ -68,7 +68,10 @@ impl JsonMutateTarget {
 
     #[must_use]
     pub fn all_names() -> Vec<&'static str> {
-        metadata::JSON_HOOK_DOCS.iter().map(|doc| doc.name).collect()
+        metadata::JSON_HOOK_DOCS
+            .iter()
+            .map(|doc| doc.name)
+            .collect()
     }
 }
 
@@ -122,8 +125,9 @@ pub struct HostApi {
     pub plugin_name_ptr: *const u8,
     pub plugin_name_len: usize,
     pub hook_state: *mut core::ffi::c_void,
-    pub register_hook:
-        Option<extern "C" fn(event: u32, callback: HookCallback, user_data: *mut core::ffi::c_void) -> i32>,
+    pub register_hook: Option<
+        extern "C" fn(event: u32, callback: HookCallback, user_data: *mut core::ffi::c_void) -> i32,
+    >,
     pub register_json_hook: Option<
         extern "C" fn(
             target: u32,

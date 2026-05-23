@@ -38,7 +38,11 @@ pub fn system_actions() -> Vec<ApiAction> {
 
 pub fn plugins_actions() -> Vec<ApiAction> {
     vec![
-        ApiAction::get("reload_plugins", "Reload plugins", "POST /api/system/plugins/reload"),
+        ApiAction::get(
+            "reload_plugins",
+            "Reload plugins",
+            "POST /api/system/plugins/reload",
+        ),
         ApiAction::get("plugin_docs", "Plugin developer docs", "GET /docs/plugins"),
     ]
 }

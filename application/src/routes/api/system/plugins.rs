@@ -2,12 +2,12 @@ use crate::routes::State;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 mod get {
+    use crate::actions::{ApiAction, plugins_actions};
     use crate::{
         plugins::PluginSummary,
         response::{ApiResponse, ApiResponseResult},
         routes::GetState,
     };
-    use crate::actions::{plugins_actions, ApiAction};
     use serde::Serialize;
     use utoipa::ToSchema;
 

@@ -3,9 +3,7 @@ pub mod middleware;
 
 use anyhow::Context;
 use events::{EmitOutcome, EventBus, SharedEventBus};
-use featherfly_plugin_sdk::{
-    HostApi, PluginEntry, PluginEvent, FEATHERFLY_PLUGIN_API_VERSION,
-};
+use featherfly_plugin_sdk::{FEATHERFLY_PLUGIN_API_VERSION, HostApi, PluginEntry, PluginEvent};
 use libloading::Library;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -59,7 +57,10 @@ impl PluginRegistry {
 
     #[must_use]
     pub fn hook_count(&self) -> usize {
-        self.event_bus.lock().map(|bus| bus.hook_count()).unwrap_or(0)
+        self.event_bus
+            .lock()
+            .map(|bus| bus.hook_count())
+            .unwrap_or(0)
     }
 
     pub fn emit(&self, event: PluginEvent, payload: &[u8]) -> EmitOutcome {
@@ -178,12 +179,13 @@ pub fn load_directory(
         .lock()
         .expect("plugin event bus poisoned")
         .hook_count();
-    tracing::info!(count = plugins.len(), hooks = hook_count, "plugin load complete");
+    tracing::info!(
+        count = plugins.len(),
+        hooks = hook_count,
+        "plugin load complete"
+    );
 
-    Ok(PluginRegistry {
-        plugins,
-        event_bus,
-    })
+    Ok(PluginRegistry { plugins, event_bus })
 }
 
 fn is_plugin_file(path: &Path) -> bool {
