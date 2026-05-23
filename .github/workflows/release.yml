@@ -5,6 +5,9 @@ on:
     tags:
       - "release-*"
 
+permissions:
+  contents: read
+
 env:
   BIN_NAME: featherfly
   PROJECT_NAME: featherfly
@@ -16,6 +19,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
+      max-parallel: 2
       matrix:
         build:
           - x86_64-linux
@@ -43,6 +47,9 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          ref: ${{ github.ref }}
 
       - name: Install Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
