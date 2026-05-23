@@ -61,6 +61,88 @@ The daemon also exposes:
 
 - `GET /api/system/update` — current update status
 - `POST /api/system/upgrade` — panel-driven binary upgrade
+- `GET /api/system/plugins` — loaded plugins
+
+## Plugins
+
+FeatherFly loads native plugins (`.so`) from the plugins directory at startup and exposes Minecraft-style event hooks.
+
+Default path: `/var/lib/featherfly/plugins` (debug: `./data/plugins`)
+
+```yaml
+system:
+  plugins_directory: /var/lib/featherfly/plugins
+
+plugins:
+  enabled: true
+```
+
+### Events
+
+| Event | When |
+|-------|------|
+| `config.loaded` | Config file has been loaded |
+| `plugin.loaded` | A plugin finished loading |
+| `daemon.starting` | Daemon is about to start HTTP |
+| `daemon.started` | HTTP server is listening |
+| `daemon.stopping` | Daemon is shutting down |
+
+Hooks run in load order. Return `HookResult::cancel()` to stop remaining handlers for that event.
+
+### JSON mutation hooks
+
+Plugins can modify JSON API responses and the `actions` step arrays panels use for follow-up work. Hook names and examples are auto-generated from `featherfly-plugin-sdk/src/metadata.rs`.
+
+| Target | Input |
+|--------|-------|
+| `json.response` | Full response object |
+| `json.actions` | The `actions` array only |
+
+Regenerate docs after changing hooks or routes:
+
+```bash
+cargo run --bin generate-docs
+# or
+featherfly docs generate
+```
+
+Full reference: [Plugin events](docs/plugins/events.html), [JSON hooks](docs/plugins/json-hooks.html), and the public site at **https://mythicalltd.github.io/featherfly/** after GitHub Pages deploys.
+
+### Build and ship
+
+```bash
+featherfly plugin build plugins/hello
+featherfly plugin install plugins/hello
+featherfly plugin ship plugins/hello
+
+make plugin-ship PLUGIN=plugins/hello
+```
+
+### Author a plugin
+
+```rust
+use featherfly_plugin_sdk::{
+    declare_plugin, hook, log_info, EventContext, HookResult, HostApi, PluginEvent,
+};
+
+extern "C" fn init(host: *const HostApi) -> i32 {
+    hook!(host, PluginEvent::DaemonStarted, on_daemon_started);
+    unsafe { log_info(host, "hello plugin ready") };
+    0
+}
+
+extern "C" fn on_daemon_started(_ctx: *const EventContext) -> HookResult {
+    HookResult::r#continue()
+}
+
+declare_plugin! {
+    name: "hello",
+    version: "0.1.0",
+    init: init,
+}
+```
+
+Example source: `plugins/hello/`
 
 ## Config
 
@@ -70,10 +152,16 @@ See `config.example.yml`.
 
 ## API
 
+Human-readable docs are generated into [`docs/`](docs/) and published to GitHub Pages — they are **not** bundled in the daemon binary.
+
+- **https://mythicalltd.github.io/featherfly/** — public docs (plugin hooks, Swagger, curl examples)
+- `GET /openapi.json` — machine-readable OpenAPI schema from a running daemon
 - `GET /health` — no auth
-- `GET /docs` — Swagger UI
-- `GET /api/system` — bearer auth required
+- `GET /api/system` — bearer auth required (includes `actions`)
 - `GET /api/system/update` — bearer auth required
+- `GET /api/system/plugins` — loaded plugins, hooks, and JSON targets
+
+Regenerate local docs with `make docs` or `featherfly docs generate`.
 
 ## CLI
 
@@ -86,9 +174,13 @@ featherfly version
 featherfly version --check
 featherfly update
 sudo featherfly update --apply --restart
+featherfly plugin ship plugins/hello
+make docs
+featherfly docs generate
 ```
 
 ## Links
 
 - https://featherpanel.com
 - https://github.com/MythicalLTD/featherfly
+- https://mythicalltd.github.io/featherfly

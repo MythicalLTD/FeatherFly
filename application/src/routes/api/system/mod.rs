@@ -2,6 +2,7 @@ use crate::routes::State;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 mod overview;
+mod plugins;
 mod update;
 mod upgrade;
 
@@ -10,6 +11,7 @@ mod get {
         response::{ApiResponse, ApiResponseResult},
         routes::GetState,
     };
+    use crate::actions::{system_actions, ApiAction};
     use serde::Serialize;
     use utoipa::ToSchema;
 
@@ -20,6 +22,7 @@ mod get {
         kernel_version: String,
         os: &'static str,
         version: &'a str,
+        actions: Vec<ApiAction>,
     }
 
     #[utoipa::path(
@@ -38,6 +41,7 @@ mod get {
             kernel_version: sysinfo::System::kernel_long_version(),
             os: std::env::consts::OS,
             version: &state.version,
+            actions: system_actions(),
         })
         .ok()
     }
@@ -47,6 +51,7 @@ pub fn router(state: &State) -> OpenApiRouter<State> {
     OpenApiRouter::new()
         .routes(routes!(get::route))
         .nest("/overview", overview::router(state))
+        .nest("/plugins", plugins::router(state))
         .nest("/update", update::router(state))
         .nest("/upgrade", upgrade::router(state))
         .with_state(state.clone())

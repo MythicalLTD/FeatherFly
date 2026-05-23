@@ -34,6 +34,9 @@ fn system_username() -> String {
 fn system_pid_file() -> String {
     "/var/run/featherfly/daemon.pid".to_string()
 }
+fn system_plugins_directory() -> String {
+    "/var/lib/featherfly/plugins".to_string()
+}
 
 #[derive(Debug, Deserialize, Serialize, DefaultFromSerde)]
 pub struct InnerConfig {
@@ -54,6 +57,9 @@ pub struct InnerConfig {
 
     #[serde(default)]
     pub updates: UpdatesConfig,
+
+    #[serde(default)]
+    pub plugins: PluginsConfig,
 }
 
 #[derive(Debug, Deserialize, Serialize, DefaultFromSerde)]
@@ -84,6 +90,19 @@ pub struct SystemConfig {
 
     #[serde(default = "system_pid_file")]
     pub pid_file: String,
+
+    #[serde(default = "system_plugins_directory")]
+    pub plugins_directory: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, DefaultFromSerde)]
+pub struct PluginsConfig {
+    #[serde(default = "plugins_enabled_default")]
+    pub enabled: bool,
+}
+
+fn plugins_enabled_default() -> bool {
+    true
 }
 
 #[derive(Debug, Deserialize, Serialize, DefaultFromSerde)]
@@ -171,6 +190,7 @@ impl Config {
             inner.system.log_directory = "./logs".into();
             inner.system.tmp_directory = "./tmp".into();
             inner.system.pid_file = "./featherfly.pid".into();
+            inner.system.plugins_directory = "./data/plugins".into();
         }
 
         if !is_subcommand {
@@ -249,6 +269,7 @@ impl Config {
             &inner.system.root_directory,
             &inner.system.log_directory,
             &inner.system.tmp_directory,
+            &inner.system.plugins_directory,
         ] {
             std::fs::create_dir_all(dir)
                 .with_context(|| format!("failed to create directory {dir}"))?;
@@ -287,6 +308,34 @@ impl Config {
                 "failed to remove pid file"
             );
         }
+    }
+
+    pub fn for_openapi_docs(app_name: impl Into<String>) -> Arc<Self> {
+        let inner = InnerConfig {
+            app_name: app_name.into(),
+            debug: true,
+            token: "docs".into(),
+            api: ApiConfig {
+                host: "127.0.0.1".into(),
+                port: 8080,
+                disable_openapi_docs: false,
+            },
+            system: SystemConfig {
+                root_directory: "./data".into(),
+                log_directory: "./logs".into(),
+                tmp_directory: "./tmp".into(),
+                username: "featherfly".into(),
+                pid_file: "./featherfly.pid".into(),
+                plugins_directory: "./data/plugins".into(),
+            },
+            updates: UpdatesConfig::default(),
+            plugins: PluginsConfig::default(),
+        };
+
+        Arc::new(Self {
+            inner: ArcSwap::new(Arc::new(inner)),
+            path: "docs".into(),
+        })
     }
 }
 
@@ -329,8 +378,10 @@ mod tests {
                 tmp_directory: "/tmp/featherfly-test/tmp".into(),
                 username: "featherfly".into(),
                 pid_file: "/tmp/featherfly-test/featherfly.pid".into(),
+                plugins_directory: "/tmp/featherfly-test/plugins".into(),
             },
             updates: UpdatesConfig::default(),
+            plugins: PluginsConfig::default(),
         };
 
         let error = super::Config::validate_inner(&inner).unwrap_err();

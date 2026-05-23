@@ -32,6 +32,12 @@ jobs:
           cache: true
           cache-key: ci
 
+      - name: Generate documentation
+        run: cargo run --bin generate-docs
+
+      - name: Verify docs are up to date
+        run: git diff --exit-code docs/
+
       - name: Check formatting
         run: cargo fmt --all -- --check
 

@@ -21,6 +21,7 @@ pub struct AppState {
     pub container_type: AppContainerType,
     pub version: String,
     pub config: Arc<crate::config::Config>,
+    pub plugins: crate::plugins::PluginRegistry,
 }
 
 #[derive(ToSchema, Serialize, Deserialize)]

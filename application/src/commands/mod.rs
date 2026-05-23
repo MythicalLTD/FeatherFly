@@ -4,7 +4,9 @@ use clap::{Arg, ArgMatches, Args, Command};
 use std::{collections::HashMap, pin::Pin, sync::Arc};
 
 mod diagnostics;
+mod docs;
 mod install;
+mod plugin;
 mod update;
 mod version;
 
@@ -135,5 +137,15 @@ pub fn commands(cli: CliCommandGroupBuilder) -> CliCommandGroupBuilder {
         "update",
         "Check GitHub for updates or install a newer FeatherFly build.",
         update::UpdateCommand,
+    )
+    .add_command(
+        "plugin",
+        "Build, install, and ship FeatherFly plugins.",
+        plugin::PluginCommand,
+    )
+    .add_command(
+        "docs",
+        "Generate static documentation from OpenAPI and plugin SDK metadata.",
+        docs::DocsCommand,
     )
 }

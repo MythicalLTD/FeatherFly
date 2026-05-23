@@ -13,6 +13,10 @@ system:
   tmp_directory: /tmp/featherfly
   username: featherfly
   pid_file: /var/run/featherfly/daemon.pid
+  plugins_directory: /var/lib/featherfly/plugins
+
+plugins:
+  enabled: true
 
 updates:
   channel: stable

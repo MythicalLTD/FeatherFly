@@ -427,7 +427,10 @@ dependencies = [
  "clap",
  "colored",
  "constant_time_eq",
+ "featherfly-docgen",
+ "featherfly-plugin-sdk",
  "hex",
+ "libloading",
  "reqwest",
  "semver",
  "serde",
@@ -444,6 +447,20 @@ dependencies = [
  "utoipa",
  "utoipa-axum",
 ]
+
+[[package]]
+name = "featherfly-docgen"
+version = "0.1.0"
+dependencies = [
+ "featherfly-plugin-sdk",
+ "serde",
+ "serde_json",
+ "utoipa",
+]
+
+[[package]]
+name = "featherfly-plugin-sdk"
+version = "0.1.0"
 
 [[package]]
 name = "find-msvc-tools"
@@ -911,6 +928,16 @@ name = "libc"
 version = "0.2.186"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
+
+[[package]]
+name = "libloading"
+version = "0.8.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7c4b02199fee7c5d21a5ae7d8cfa79a6ef5bb2fc834d6e9058e89c825efdc55"
+dependencies = [
+ "cfg-if",
+ "windows-link",
+]
 
 [[package]]
 name = "linux-raw-sys"

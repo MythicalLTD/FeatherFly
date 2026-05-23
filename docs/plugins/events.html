@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Plugin Events</title>
+  <style>
+    :root { color-scheme: light dark; font-family: Inter, system-ui, sans-serif; line-height: 1.6; }
+    body { margin: 0; background: #0b1020; color: #eef2ff; }
+    main { max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+    a { color: #8fb0ff; }
+    h1, h2, h3 { line-height: 1.25; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92rem; }
+    pre { background: #10182d; border: 1px solid #243055; border-radius: 10px; padding: 16px; overflow-x: auto; }
+    code { background: #10182d; padding: 2px 6px; border-radius: 6px; }
+    .nav { margin-bottom: 24px; color: #b8c0dc; }
+    .lead { color: #b8c0dc; font-size: 1.05rem; }
+    .meta { color: #8a93b0; font-size: 0.9rem; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    th, td { border: 1px solid #243055; padding: 10px 12px; text-align: left; vertical-align: top; }
+    th { background: #141b31; }
+    .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: 24px; }
+    a.card { display: block; padding: 20px; border-radius: 14px; background: #141b31; border: 1px solid #243055; text-decoration: none; color: inherit; }
+    a.card:hover { border-color: #5b7cfa; }
+    a.card h2 { margin: 0 0 8px; font-size: 1.15rem; }
+    a.card p { margin: 0; color: #b8c0dc; font-size: 0.95rem; }
+    .endpoint { border: 1px solid #243055; border-radius: 12px; padding: 16px; margin: 16px 0; background: #10182d; }
+    .method { display: inline-block; padding: 2px 8px; border-radius: 6px; background: #243055; font-weight: 600; text-transform: uppercase; font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="nav"><a href="../index.html">Docs home</a> · <a href="events.html">Events</a> · <a href="json-hooks.html">JSON hooks</a> · <a href="getting-started.html">Getting started</a> · <a href="../api/index.html">HTTP API</a></p><h1>Lifecycle Events</h1>
+<p class="lead">Register with <code>hook!(host, PluginEvent::Variant, callback)</code>. Hooks run in plugin load order. Return <code>HookResult::cancel()</code> to stop remaining handlers for that event.</p>
+<table>
+<tr><th>Event</th><th>Summary</th><th>When</th><th>Payload</th><th>Cancelable</th></tr>
+<tr><td><code>config.loaded</code></td><td>Fires after the daemon config file has been parsed.</td><td>During plugin directory scan, before any `.so` files are loaded.</td><td>Raw YAML bytes of the active config file.</td><td>yes</td></tr><tr><td><code>plugin.loaded</code></td><td>Fires after each plugin finishes initialization.</td><td>Immediately after a plugin's `init` returns success.</td><td>UTF-8 plugin name bytes.</td><td>yes</td></tr><tr><td><code>daemon.starting</code></td><td>Fires before the HTTP server is constructed.</td><td>After plugins are loaded and before Axum routes are wired.</td><td>Empty.</td><td>yes</td></tr><tr><td><code>daemon.started</code></td><td>Fires when the HTTP server is listening.</td><td>Right before `axum::serve` begins accepting connections.</td><td>Listen address as UTF-8 bytes, e.g. `127.0.0.1:8080`.</td><td>yes</td></tr><tr><td><code>daemon.stopping</code></td><td>Fires during graceful shutdown.</td><td>Before plugin `shutdown` functions are invoked.</td><td>Empty.</td><td>yes</td></tr>
+</table>
+<h2>Examples</h2>
+<h3><code>config.loaded</code></h3><p>Fires after the daemon config file has been parsed. During plugin directory scan, before any `.so` files are loaded.</p><h4>Register</h4><pre><code>hook!(host, PluginEvent::ConfigLoaded, on_config_loaded);</code></pre><h4>Handler</h4><pre><code>extern "C" fn on_config_loaded(ctx: *const EventContext) -&gt; HookResult {
+    let ctx = unsafe { &amp;*ctx };
+    let payload = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
+    let _yaml = std::str::from_utf8(payload).unwrap_or_default();
+    HookResult::r#continue()
+}</code></pre><h3><code>plugin.loaded</code></h3><p>Fires after each plugin finishes initialization. Immediately after a plugin's `init` returns success.</p><h4>Register</h4><pre><code>hook!(host, PluginEvent::PluginLoaded, on_plugin_loaded);</code></pre><h4>Handler</h4><pre><code>extern "C" fn on_plugin_loaded(ctx: *const EventContext) -&gt; HookResult {
+    HookResult::r#continue()
+}</code></pre><h3><code>daemon.starting</code></h3><p>Fires before the HTTP server is constructed. After plugins are loaded and before Axum routes are wired.</p><h4>Register</h4><pre><code>hook!(host, PluginEvent::DaemonStarting, on_daemon_starting);</code></pre><h4>Handler</h4><pre><code>extern "C" fn on_daemon_starting(_ctx: *const EventContext) -&gt; HookResult {
+    HookResult::r#continue()
+}</code></pre><h3><code>daemon.started</code></h3><p>Fires when the HTTP server is listening. Right before `axum::serve` begins accepting connections.</p><h4>Register</h4><pre><code>hook!(host, PluginEvent::DaemonStarted, on_daemon_started);</code></pre><h4>Handler</h4><pre><code>extern "C" fn on_daemon_started(ctx: *const EventContext) -&gt; HookResult {
+    let ctx = unsafe { &amp;*ctx };
+    let address = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
+    let _addr = std::str::from_utf8(address).unwrap_or_default();
+    HookResult::r#continue()
+}</code></pre><h3><code>daemon.stopping</code></h3><p>Fires during graceful shutdown. Before plugin `shutdown` functions are invoked.</p><h4>Register</h4><pre><code>hook!(host, PluginEvent::DaemonStopping, on_daemon_stopping);</code></pre><h4>Handler</h4><pre><code>extern "C" fn on_daemon_stopping(_ctx: *const EventContext) -&gt; HookResult {
+    HookResult::r#continue()
+}</code></pre>
+  </main>
+</body>
+</html>

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Plugin Getting Started</title>
+  <style>
+    :root { color-scheme: light dark; font-family: Inter, system-ui, sans-serif; line-height: 1.6; }
+    body { margin: 0; background: #0b1020; color: #eef2ff; }
+    main { max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+    a { color: #8fb0ff; }
+    h1, h2, h3 { line-height: 1.25; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92rem; }
+    pre { background: #10182d; border: 1px solid #243055; border-radius: 10px; padding: 16px; overflow-x: auto; }
+    code { background: #10182d; padding: 2px 6px; border-radius: 6px; }
+    .nav { margin-bottom: 24px; color: #b8c0dc; }
+    .lead { color: #b8c0dc; font-size: 1.05rem; }
+    .meta { color: #8a93b0; font-size: 0.9rem; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    th, td { border: 1px solid #243055; padding: 10px 12px; text-align: left; vertical-align: top; }
+    th { background: #141b31; }
+    .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: 24px; }
+    a.card { display: block; padding: 20px; border-radius: 14px; background: #141b31; border: 1px solid #243055; text-decoration: none; color: inherit; }
+    a.card:hover { border-color: #5b7cfa; }
+    a.card h2 { margin: 0 0 8px; font-size: 1.15rem; }
+    a.card p { margin: 0; color: #b8c0dc; font-size: 0.95rem; }
+    .endpoint { border: 1px solid #243055; border-radius: 12px; padding: 16px; margin: 16px 0; background: #10182d; }
+    .method { display: inline-block; padding: 2px 8px; border-radius: 6px; background: #243055; font-weight: 600; text-transform: uppercase; font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="nav"><a href="../index.html">Docs home</a> · <a href="events.html">Events</a> · <a href="json-hooks.html">JSON hooks</a> · <a href="getting-started.html">Getting started</a> · <a href="../api/index.html">HTTP API</a></p><h1>Getting Started</h1>
+<p class="lead">Plugins are native shared libraries loaded from the configured plugins directory.</p>
+<h2>Project setup</h2>
+<pre><code>cargo new --lib my-plugin
+# Cargo.toml
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+featherfly-plugin-sdk = { path = "../featherfly-plugin-sdk" }
+serde_json = "1"</code></pre>
+<h2>Build and install</h2>
+<pre><code>featherfly plugin build ./my-plugin
+featherfly plugin install ./my-plugin
+featherfly plugin ship ./my-plugin</code></pre>
+<h2>Paths</h2>
+<ul>
+<li>Production plugins: <code>/var/lib/featherfly/plugins/*.so</code></li>
+<li>Debug plugins: <code>./data/plugins/*.so</code></li>
+<li>Config keys: <code>system.plugins_directory</code>, <code>plugins.enabled</code></li>
+</ul>
+<h2>Inspect at runtime</h2>
+<pre><code>curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/system/plugins</code></pre>
+<p>Returns loaded plugins, hook counts, and the current event / JSON target names from the SDK.</p>
+<h2>SDK macros</h2>
+<table>
+<tr><th>Macro</th><th>Purpose</th></tr>
+<tr><td><code>declare_plugin!</code></td><td>Export <code>featherfly_plugin_entry</code> with name, version, init, shutdown.</td></tr>
+<tr><td><code>hook!</code></td><td>Register a lifecycle event callback during <code>init</code>.</td></tr>
+<tr><td><code>hook_json!</code></td><td>Register a JSON mutation callback during <code>init</code>.</td></tr>
+</table>
+<p>Example source: repository path <code>plugins/hello/</code>.</p>
+  </main>
+</body>
+</html>

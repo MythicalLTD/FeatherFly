@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JSON Mutation Hooks</title>
+  <style>
+    :root { color-scheme: light dark; font-family: Inter, system-ui, sans-serif; line-height: 1.6; }
+    body { margin: 0; background: #0b1020; color: #eef2ff; }
+    main { max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+    a { color: #8fb0ff; }
+    h1, h2, h3 { line-height: 1.25; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92rem; }
+    pre { background: #10182d; border: 1px solid #243055; border-radius: 10px; padding: 16px; overflow-x: auto; }
+    code { background: #10182d; padding: 2px 6px; border-radius: 6px; }
+    .nav { margin-bottom: 24px; color: #b8c0dc; }
+    .lead { color: #b8c0dc; font-size: 1.05rem; }
+    .meta { color: #8a93b0; font-size: 0.9rem; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    th, td { border: 1px solid #243055; padding: 10px 12px; text-align: left; vertical-align: top; }
+    th { background: #141b31; }
+    .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: 24px; }
+    a.card { display: block; padding: 20px; border-radius: 14px; background: #141b31; border: 1px solid #243055; text-decoration: none; color: inherit; }
+    a.card:hover { border-color: #5b7cfa; }
+    a.card h2 { margin: 0 0 8px; font-size: 1.15rem; }
+    a.card p { margin: 0; color: #b8c0dc; font-size: 0.95rem; }
+    .endpoint { border: 1px solid #243055; border-radius: 12px; padding: 16px; margin: 16px 0; background: #10182d; }
+    .method { display: inline-block; padding: 2px 8px; border-radius: 6px; background: #243055; font-weight: 600; text-transform: uppercase; font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="nav"><a href="../index.html">Docs home</a> · <a href="events.html">Events</a> · <a href="json-hooks.html">JSON hooks</a> · <a href="getting-started.html">Getting started</a> · <a href="../api/index.html">HTTP API</a></p><h1>JSON Mutation Hooks</h1>
+<p class="lead">Register with <code>hook_json!(host, JsonMutateTarget::Variant, route_pattern, callback)</code>. Return <code>JSON_MUTATE_MODIFIED</code> after writing output with <code>write_json_output</code>, or <code>JSON_MUTATE_UNCHANGED</code> to pass through.</p>
+<h2>Action object shape</h2>
+<pre><code>{
+  "id": "check_update",
+  "label": "Check for updates",
+  "step": "GET /api/system/update"
+}</code></pre>
+<table>
+<tr><th>Target</th><th>Summary</th><th>Input JSON</th><th>Route matching</th></tr>
+<tr><td><code>json.response</code></td><td>Mutate the full JSON response object before it is sent.</td><td>The serialized JSON response body as an object.</td><td>Prefix match on the request path. Use `/api/system` or `*` for all JSON routes.</td></tr><tr><td><code>json.actions</code></td><td>Mutate only the top-level `actions` array on API responses.</td><td>A JSON array of action objects with `id`, `label`, and optional `step` fields.</td><td>Prefix match on the request path. Runs after body hooks; changes are merged back into the response.</td></tr>
+</table>
+<h2>Examples</h2>
+<h3><code>json.response</code></h3><p>Mutate the full JSON response object before it is sent.</p><h4>Register</h4><pre><code>hook_json!(host, JsonMutateTarget::ResponseBody, "/api/system", on_system_body);</code></pre><h4>Handler</h4><pre><code>extern "C" fn on_system_body(ctx: *const JsonMutateContext) -&gt; i32 {
+    let ctx = unsafe { &amp;*ctx };
+    let input = unsafe { std::slice::from_raw_parts(ctx.json_in_ptr, ctx.json_in_len) };
+    let Ok(mut value) = serde_json::from_slice::&lt;serde_json::Value&gt;(input) else {
+        return JSON_MUTATE_UNCHANGED;
+    };
+    if let Some(map) = value.as_object_mut() {
+        map.insert("my_plugin".into(), serde_json::json!(true));
+    }
+    let Ok(out) = serde_json::to_vec(&amp;value) else {
+        return JSON_MUTATE_UNCHANGED;
+    };
+    write_json_output(ctx, &amp;out)
+}</code></pre><h3><code>json.actions</code></h3><p>Mutate only the top-level `actions` array on API responses.</p><h4>Register</h4><pre><code>hook_json!(host, JsonMutateTarget::ResponseActions, "/api/system", on_system_actions);</code></pre><h4>Handler</h4><pre><code>extern "C" fn on_system_actions(ctx: *const JsonMutateContext) -&gt; i32 {
+    let ctx = unsafe { &amp;*ctx };
+    let input = unsafe { std::slice::from_raw_parts(ctx.json_in_ptr, ctx.json_in_len) };
+    let Ok(mut actions) = serde_json::from_slice::&lt;Vec&lt;serde_json::Value&gt;&gt;(input) else {
+        return JSON_MUTATE_UNCHANGED;
+    };
+    actions.retain(|a| a.get("id").and_then(|v| v.as_str()) != Some("diagnostics"));
+    actions.push(serde_json::json!({
+        "id": "custom_step",
+        "label": "Open plugin docs",
+        "step": "GET /docs/plugins"
+    }));
+    let Ok(out) = serde_json::to_vec(&amp;actions) else {
+        return JSON_MUTATE_UNCHANGED;
+    };
+    write_json_output(ctx, &amp;out)
+}</code></pre>
+  </main>
+</body>
+</html>

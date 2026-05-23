@@ -1,60 +1,7 @@
-use axum::{
-    body::Body,
-    extract::Request,
-    http::{Response, StatusCode},
-    middleware::Next,
-    response::IntoResponse,
-};
 use colored::Colorize;
 use std::sync::Arc;
 
 use clap::parser::ValueSource;
-use utoipa::openapi::ServerBuilder;
-use utoipa::openapi::security::SecurityRequirement;
-use utoipa::openapi::security::{Http, HttpAuthScheme, SecurityScheme};
-
-use crate::response::ApiResponse;
-
-async fn handle_request(req: Request, next: Next) -> Result<Response<Body>, StatusCode> {
-    tracing::debug!(
-        path = req.uri().path(),
-        query = req.uri().query().unwrap_or_default(),
-        "http {}",
-        req.method().as_str().to_lowercase(),
-    );
-
-    Ok(next.run(req).await)
-}
-
-mod auth;
-mod commands;
-mod config;
-mod docs;
-mod response;
-mod routes;
-mod update;
-
-#[cfg(not(unix))]
-compile_error!("FeatherFly only supports Unix-like systems");
-
-const VERSION: &str = env!("CARGO_PKG_VERSION");
-const GIT_COMMIT: &str = env!("CARGO_GIT_COMMIT");
-const GIT_BRANCH: &str = env!("CARGO_GIT_BRANCH");
-const TARGET: &str = env!("CARGO_TARGET");
-
-const DEFAULT_CONFIG_PATH: &str = "/etc/featherfly/config.yml";
-pub(crate) const GITHUB_REPO: &str = "MythicalLTD/featherfly";
-pub(crate) const GITHUB_REPOSITORY: &str = "https://github.com/MythicalLTD/featherfly";
-pub(crate) const PROJECT_WEBSITE: &str = "https://featherpanel.com";
-pub(crate) const PROJECT_LICENSE: &str = "MIT";
-
-pub(crate) fn full_version() -> String {
-    if GIT_BRANCH == "unknown" {
-        VERSION.to_string()
-    } else {
-        format!("{VERSION}:{GIT_COMMIT}@{GIT_BRANCH}")
-    }
-}
 
 fn print_banner() {
     const BANNER: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../banner.txt"));
@@ -63,20 +10,24 @@ fn print_banner() {
         println!("{line}");
     }
 
-    println!("featherfly v{} ({})", crate::VERSION, crate::GIT_COMMIT);
-    println!("{GITHUB_REPOSITORY}");
-    println!("{PROJECT_WEBSITE}");
-    println!("license: {PROJECT_LICENSE}");
+    println!(
+        "featherfly v{} ({})",
+        featherfly::VERSION,
+        featherfly::GIT_COMMIT
+    );
+    println!("{}", featherfly::GITHUB_REPOSITORY);
+    println!("{}", featherfly::PROJECT_WEBSITE);
+    println!("license: {}", featherfly::PROJECT_LICENSE);
     println!();
 }
 
-async fn main_rt() {
-    let cli = crate::commands::CliCommandGroupBuilder::new(
+async fn main_rt() -> Result<(), i32> {
+    let cli = featherfly::commands::CliCommandGroupBuilder::new(
         "featherfly",
         "The FeatherFly daemon implementing web hosting for the panel.",
     );
 
-    let mut cli = crate::commands::commands(cli);
+    let mut cli = featherfly::commands::commands(cli);
     let mut matches = cli.get_matches();
 
     let debug = *matches.get_one::<bool>("debug").unwrap();
@@ -84,27 +35,34 @@ async fn main_rt() {
     let config_from_cli = matches
         .value_source("config")
         .is_some_and(|source| source == ValueSource::CommandLine);
-    let config_path =
-        match crate::config::Config::resolve_config_path(debug, config_explicit, config_from_cli) {
-            Ok(path) => path,
-            Err(err) => {
-                eprintln!("failed to resolve config path: {err:#?}");
-                std::process::exit(1);
-            }
-        };
+    let config_path = match featherfly::config::Config::resolve_config_path(
+        debug,
+        config_explicit,
+        config_from_cli,
+    ) {
+        Ok(path) => path,
+        Err(err) => {
+            eprintln!("failed to resolve config path: {err:#?}");
+            return Err(1);
+        }
+    };
 
     if matches.subcommand().is_none() {
         print_banner();
     }
 
-    let config = crate::config::Config::open(&config_path, debug, matches.subcommand().is_some());
+    let config =
+        featherfly::config::Config::open(&config_path, debug, matches.subcommand().is_some());
 
     if let Some((command, arg_matches)) = matches.remove_subcommand() {
         if let Some((func, arg_matches)) = cli.match_command(command, arg_matches) {
             match func(config.as_ref().ok().map(|e| e.0.clone()), arg_matches).await {
                 Ok(exit_code) => {
                     drop(config);
-                    std::process::exit(exit_code);
+                    if exit_code != 0 {
+                        return Err(exit_code);
+                    }
+                    return Ok(());
                 }
                 Err(err) => {
                     drop(config);
@@ -113,163 +71,16 @@ async fn main_rt() {
                         "an error occurred while running cli command".red(),
                         err
                     );
-                    std::process::exit(1);
+                    return Err(1);
                 }
             }
         } else {
             cli.print_help();
-            std::process::exit(0);
+            return Ok(());
         }
     }
 
-    let (config, _guard) = match config {
-        Ok(config) => config,
-        Err(err) => {
-            eprintln!("failed to load configuration: {err:#?}");
-            std::process::exit(1);
-        }
-    };
-    tracing::info!("config loaded from {}", config_path);
-
-    let state = Arc::new(crate::routes::AppState {
-        start_time: std::time::Instant::now(),
-        container_type: match std::env::var("OCI_CONTAINER").as_deref() {
-            Ok("official") => crate::routes::AppContainerType::Official,
-            Ok(_) => crate::routes::AppContainerType::Unknown,
-            Err(_) => crate::routes::AppContainerType::None,
-        },
-        version: crate::full_version(),
-        config: Arc::clone(&config),
-    });
-
-    let app = utoipa_axum::router::OpenApiRouter::new()
-        .merge(crate::routes::router(&state))
-        .fallback(|_req: Request| async move {
-            ApiResponse::error("route not found")
-                .with_status(StatusCode::NOT_FOUND)
-                .into_response()
-        })
-        .layer(axum::middleware::from_fn(handle_request))
-        .with_state(state.clone());
-
-    let (mut router, mut openapi) = app.split_for_parts();
-    openapi.info.version = crate::VERSION.into();
-    openapi.info.description =
-        Some("FeatherFly web hosting daemon API — part of the FeatherPanel ecosystem.".into());
-    openapi.info.title = format!("{} API", config.load().app_name);
-    openapi.info.contact = Some(
-        utoipa::openapi::ContactBuilder::new()
-            .name(Some("FeatherPanel"))
-            .url(Some(PROJECT_WEBSITE))
-            .email(Some("support@featherpanel.com"))
-            .build(),
-    );
-    openapi.info.license = Some(utoipa::openapi::License::new(PROJECT_LICENSE));
-
-    openapi.components.as_mut().unwrap().add_security_scheme(
-        "bearer_auth",
-        SecurityScheme::Http(Http::new(HttpAuthScheme::Bearer)),
-    );
-
-    let security_req = SecurityRequirement::new("bearer_auth", Vec::<String>::new());
-    for (path, item) in openapi.paths.paths.iter_mut() {
-        let operations = [
-            ("get", &mut item.get),
-            ("post", &mut item.post),
-            ("put", &mut item.put),
-            ("patch", &mut item.patch),
-            ("delete", &mut item.delete),
-        ];
-
-        let operation_suffix = path
-            .replace('/', "_")
-            .replace(|c| ['{', '}'].contains(&c), "");
-
-        for (method, operation) in operations {
-            if let Some(operation) = operation {
-                if operation.operation_id.as_deref() == Some("route") {
-                    operation.operation_id = Some(format!("{method}{operation_suffix}"));
-                }
-                operation.security = Some(vec![security_req.clone()]);
-            }
-        }
-    }
-
-    openapi.servers = Some(vec![ServerBuilder::new().url("/").build()]);
-
-    if !config.load().api.disable_openapi_docs {
-        router = router
-            .route(
-                "/openapi.json",
-                axum::routing::get(|| async move { axum::Json(openapi) }),
-            )
-            .route("/docs", axum::routing::get(crate::docs::swagger_ui));
-    }
-
-    if let Ok(host) = config.load().api.host.parse::<std::net::IpAddr>() {
-        let address = std::net::SocketAddr::from((host, config.load().api.port));
-
-        tracing::info!("http listening on {}", address);
-
-        if !config.load().api.disable_openapi_docs {
-            tracing::info!("api docs available at http://{}/docs", address);
-        }
-
-        if config.load().updates.check_on_startup
-            && config.load().updates.channel != crate::update::UpdateChannel::Disabled
-        {
-            let channel = config.load().updates.channel;
-            tokio::spawn(async move {
-                match crate::update::check_update(channel).await {
-                    Ok(status) if status.update_available => {
-                        tracing::info!(
-                            channel = ?status.channel,
-                            latest_version = ?status.latest_version,
-                            latest_commit = ?status.latest_commit,
-                            download_url = ?status.download_url,
-                            "a newer FeatherFly build is available on GitHub"
-                        );
-                    }
-                    Ok(_) => {}
-                    Err(err) => {
-                        tracing::debug!("startup update check failed: {err:#}");
-                    }
-                }
-            });
-        }
-
-        match axum::serve(
-            match tokio::net::TcpListener::bind(address).await {
-                Ok(listener) => listener,
-                Err(err) => {
-                    if err.kind() == std::io::ErrorKind::AddrInUse {
-                        tracing::error!("failed to start http server (address already in use)");
-                    } else {
-                        tracing::error!("failed to start http server: {:?}", err);
-                    }
-                    std::process::exit(1);
-                }
-            },
-            router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
-        )
-        .await
-        {
-            Ok(_) => {}
-            Err(err) => {
-                if err.kind() == std::io::ErrorKind::AddrInUse {
-                    tracing::error!("failed to start http server (address already in use)");
-                } else {
-                    tracing::error!("failed to start http server: {:?}", err);
-                }
-                std::process::exit(1);
-            }
-        }
-    } else {
-        tracing::error!("invalid api.host configured: {}", config.load().api.host);
-        std::process::exit(1);
-    }
-
-    crate::config::Config::remove_pid_file(&config.load());
+    featherfly::daemon::start(&config_path, debug).await
 }
 
 fn main() {
@@ -288,5 +99,6 @@ fn main() {
         .name("featherfly-rt")
         .build()
         .unwrap()
-        .block_on(main_rt());
+        .block_on(main_rt())
+        .unwrap_or_else(|code| std::process::exit(code));
 }

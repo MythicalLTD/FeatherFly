@@ -77,6 +77,7 @@ fn install_layout() -> anyhow::Result<()> {
     for dir in [
         CONFIG_DIR,
         "/var/lib/featherfly",
+        "/var/lib/featherfly/plugins",
         "/var/log/featherfly",
         "/tmp/featherfly",
         "/var/run/featherfly",
