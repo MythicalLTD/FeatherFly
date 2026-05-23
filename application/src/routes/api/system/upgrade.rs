@@ -84,15 +84,7 @@ mod post {
 
         let temp_path = parent.join(format!("{}.upgrade", file_name.to_string_lossy()));
 
-        let client = match reqwest::Client::builder()
-            .user_agent(concat!(
-                env!("CARGO_PKG_NAME"),
-                "/",
-                env!("CARGO_PKG_VERSION")
-            ))
-            .connect_timeout(std::time::Duration::from_secs(30))
-            .build()
-        {
+        let client = match crate::update::http_client() {
             Ok(client) => client,
             Err(_) => {
                 return ApiResponse::error("failed to build HTTP client")

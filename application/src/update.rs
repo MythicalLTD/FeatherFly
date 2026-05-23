@@ -25,8 +25,25 @@ pub struct UpdateStatus {
     pub update_available: bool,
     pub download_url: Option<String>,
     pub download_name: Option<String>,
+    pub sha256: Option<String>,
     pub release_url: Option<String>,
     pub published_at: Option<String>,
+    #[serde(default = "default_check_ok")]
+    pub check_ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+}
+
+fn default_check_ok() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ApplyUpdateResult {
+    pub channel: UpdateChannel,
+    pub installed_version: Option<String>,
+    pub installed_commit: Option<String>,
+    pub binary_path: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -78,6 +95,27 @@ pub async fn check_update(channel: UpdateChannel) -> Result<UpdateStatus, anyhow
         UpdateChannel::Disabled => unreachable!(),
     };
 
+    build_status_from_release(channel, release).await
+}
+
+pub async fn check_update_status(channel: UpdateChannel) -> UpdateStatus {
+    match check_update(channel).await {
+        Ok(status) => status,
+        Err(err) => {
+            tracing::debug!("update check failed: {err:#}");
+            UpdateStatus {
+                check_ok: false,
+                message: Some(err.to_string()),
+                ..base_status(channel)
+            }
+        }
+    }
+}
+
+async fn build_status_from_release(
+    channel: UpdateChannel,
+    release: GithubRelease,
+) -> Result<UpdateStatus, anyhow::Error> {
     let asset_name = platform_asset_name();
     let asset = release.assets.iter().find(|asset| asset.name == asset_name);
 
@@ -94,6 +132,14 @@ pub async fn check_update(channel: UpdateChannel) -> Result<UpdateStatus, anyhow
         UpdateChannel::Disabled => false,
     };
 
+    let sha256 = match fetch_checksums(&release).await {
+        Ok(checksums) => asset.and_then(|asset| checksum_for_asset(&checksums, &asset.name)),
+        Err(err) => {
+            tracing::debug!("could not fetch SHA256SUMS: {err:#}");
+            None
+        }
+    };
+
     Ok(UpdateStatus {
         channel,
         current_version: crate::VERSION.to_string(),
@@ -103,8 +149,73 @@ pub async fn check_update(channel: UpdateChannel) -> Result<UpdateStatus, anyhow
         update_available,
         download_url: asset.map(|asset| asset.browser_download_url.clone()),
         download_name: asset.map(|asset| asset.name.clone()),
+        sha256,
         release_url: Some(release.html_url),
         published_at: release.published_at,
+        check_ok: true,
+        message: None,
+    })
+}
+
+pub async fn apply_update(channel: UpdateChannel) -> Result<ApplyUpdateResult, anyhow::Error> {
+    if channel == UpdateChannel::Disabled {
+        bail!("updates are disabled in configuration");
+    }
+
+    let status = check_update(channel).await?;
+    if !status.update_available {
+        bail!("FeatherFly is already up to date");
+    }
+
+    let download_url = status
+        .download_url
+        .as_deref()
+        .context("GitHub release is missing a binary for this platform")?;
+    let download_name = status
+        .download_name
+        .as_deref()
+        .context("GitHub release is missing a binary name for this platform")?;
+
+    let current_exe = std::env::current_exe().context("failed to locate current binary")?;
+    let parent = current_exe
+        .parent()
+        .context("failed to locate current binary directory")?;
+    let file_name = current_exe
+        .file_name()
+        .context("failed to locate current binary name")?;
+    let temp_path = parent.join(format!("{}.upgrade", file_name.to_string_lossy()));
+
+    download_release_asset(download_url, &temp_path).await?;
+
+    if let Some(expected) = status.sha256 {
+        verify_file_sha256(&temp_path, &expected)?;
+    } else if let Ok(checksums) = fetch_checksums_for_channel(channel).await {
+        if let Some(expected) = checksum_for_asset(&checksums, download_name) {
+            verify_file_sha256(&temp_path, &expected)?;
+        } else {
+            tracing::warn!(
+                "SHA256SUMS did not include {download_name}; continuing without checksum verification"
+            );
+        }
+    } else {
+        tracing::warn!("could not verify checksum for update; continuing without verification");
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        tokio::fs::set_permissions(&temp_path, std::fs::Permissions::from_mode(0o755)).await?;
+    }
+
+    tokio::fs::rename(&temp_path, &current_exe)
+        .await
+        .with_context(|| format!("failed to replace {} with update", current_exe.display()))?;
+
+    Ok(ApplyUpdateResult {
+        channel,
+        installed_version: status.latest_version,
+        installed_commit: status.latest_commit,
+        binary_path: current_exe.display().to_string(),
     })
 }
 
@@ -153,7 +264,7 @@ pub async fn download_release_asset(
     url: &str,
     destination: &std::path::Path,
 ) -> Result<(), anyhow::Error> {
-    let client = github_client()?;
+    let client = http_client()?;
     let response = client
         .get(url)
         .send()
@@ -204,8 +315,11 @@ fn base_status(channel: UpdateChannel) -> UpdateStatus {
         update_available: false,
         download_url: None,
         download_name: None,
+        sha256: None,
         release_url: None,
         published_at: None,
+        check_ok: true,
+        message: None,
     }
 }
 
@@ -238,11 +352,17 @@ async fn fetch_release_by_tag(tag: &str) -> Result<GithubRelease, anyhow::Error>
         )
     };
 
-    github_client()?
+    let response = http_client()?
         .get(url)
         .send()
         .await
-        .context("failed to query GitHub releases API")?
+        .context("failed to query GitHub releases API")?;
+
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        bail!("no GitHub release found (publish a release or switch updates.channel to disabled)");
+    }
+
+    response
         .error_for_status()
         .context("GitHub releases API returned an error")?
         .json::<GithubRelease>()
@@ -251,14 +371,20 @@ async fn fetch_release_by_tag(tag: &str) -> Result<GithubRelease, anyhow::Error>
 }
 
 async fn fetch_all_releases() -> Result<Vec<GithubRelease>, anyhow::Error> {
-    github_client()?
+    let response = http_client()?
         .get(format!(
             "https://api.github.com/repos/{}/releases?per_page=20",
             crate::GITHUB_REPO
         ))
         .send()
         .await
-        .context("failed to query GitHub releases API")?
+        .context("failed to query GitHub releases API")?;
+
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        bail!("GitHub releases are not available for this repository yet");
+    }
+
+    response
         .error_for_status()
         .context("GitHub releases API returned an error")?
         .json::<Vec<GithubRelease>>()
@@ -266,12 +392,17 @@ async fn fetch_all_releases() -> Result<Vec<GithubRelease>, anyhow::Error> {
         .context("failed to decode GitHub releases response")
 }
 
-fn github_client() -> Result<reqwest::Client, anyhow::Error> {
+pub fn http_client() -> Result<reqwest::Client, anyhow::Error> {
     reqwest::Client::builder()
         .user_agent(USER_AGENT)
         .timeout(std::time::Duration::from_secs(30))
+        .connect_timeout(std::time::Duration::from_secs(10))
         .build()
         .context("failed to build HTTP client")
+}
+
+fn github_client() -> Result<reqwest::Client, anyhow::Error> {
+    http_client()
 }
 
 fn parse_release_version(tag_name: &str) -> Option<String> {

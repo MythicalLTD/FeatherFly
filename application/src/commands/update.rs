@@ -95,62 +95,13 @@ async fn run_apply(
     }
 
     let channel = resolve_channel(config, args.channel);
-    let status = crate::update::check_update(channel).await?;
+    let result = crate::update::apply_update(channel).await?;
 
-    if !status.update_available {
-        println!("FeatherFly is already up to date.");
-        return Ok(0);
+    println!("installed update to {}", result.binary_path);
+
+    if let Some(version) = &result.installed_version {
+        println!("version: {version}");
     }
-
-    let download_url = status
-        .download_url
-        .as_deref()
-        .context("GitHub release is missing a binary for this platform")?;
-    let download_name = status
-        .download_name
-        .as_deref()
-        .context("GitHub release is missing a binary name for this platform")?;
-
-    let current_exe = std::env::current_exe().context("failed to locate current binary")?;
-    let parent = current_exe
-        .parent()
-        .context("failed to locate current binary directory")?;
-    let file_name = current_exe
-        .file_name()
-        .context("failed to locate current binary name")?;
-    let temp_path = parent.join(format!("{}.upgrade", file_name.to_string_lossy()));
-
-    println!("downloading {download_name}...");
-    crate::update::download_release_asset(download_url, &temp_path).await?;
-
-    match crate::update::fetch_checksums_for_channel(channel).await {
-        Ok(checksums) => {
-            if let Some(expected) = crate::update::checksum_for_asset(&checksums, download_name) {
-                crate::update::verify_file_sha256(&temp_path, &expected)?;
-            } else {
-                tracing::warn!(
-                    "SHA256SUMS did not include {download_name}; continuing without checksum verification"
-                );
-            }
-        }
-        Err(err) => {
-            tracing::warn!(
-                "could not verify checksum for update: {err:#}; continuing without checksum verification"
-            );
-        }
-    }
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        tokio::fs::set_permissions(&temp_path, std::fs::Permissions::from_mode(0o755)).await?;
-    }
-
-    tokio::fs::rename(&temp_path, &current_exe)
-        .await
-        .with_context(|| format!("failed to replace {} with update", current_exe.display()))?;
-
-    println!("installed update to {}", current_exe.display());
 
     if args.restart {
         restart_service()?;

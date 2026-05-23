@@ -155,7 +155,7 @@ pub fn write_index(output: &Path) -> std::io::Result<()> {
         entry(
             "System update",
             "api/system-update.html",
-            "github release check upgrade channel",
+            "github release check apply download sha256 upgrade channel",
         ),
         entry(
             "System upgrade",

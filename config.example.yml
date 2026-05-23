@@ -39,6 +39,7 @@ plugins:
 remote:
   config_edit: true
   restart: true
+  upgrade: true
 
 security:
   probe_protection:

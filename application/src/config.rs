@@ -244,6 +244,9 @@ pub struct RemoteConfig {
 
     #[serde(default = "default_true")]
     pub restart: bool,
+
+    #[serde(default = "default_true")]
+    pub upgrade: bool,
 }
 
 pub struct ConfigApplyResult {

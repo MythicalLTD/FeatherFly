@@ -151,19 +151,31 @@ pub const GROUPS: &[ApiGroup] = &[
     ApiGroup {
         id: "api-system-update",
         title: "Updates",
-        summary: "Check GitHub for newer FeatherFly builds.",
+        summary: "Check GitHub for newer FeatherFly builds and apply updates.",
         slug: "system-update",
         router_source: "application/src/routes/api/system/update.rs",
-        routes: &[RouteDoc {
-            method: "GET",
-            path: "/api/system/update",
-            operation_id: "get_system_update",
-            title: "Check for updates",
-            description: "Compares the running version against GitHub releases (stable or nightly channel from config). Returns whether an update exists, latest version string, and download URL.",
-            auth: "Bearer token",
-            response: r#"{"update_available":false,"current_version":"0.1.0","latest_version":"0.1.0","url":null}"#,
-            source: "application/src/routes/api/system/update.rs",
-        }],
+        routes: &[
+            RouteDoc {
+                method: "GET",
+                path: "/api/system/update",
+                operation_id: "get_system_update",
+                title: "Check for updates",
+                description: "Queries GitHub releases for the configured channel (stable/nightly). Always returns 200 — set `check_ok: false` with a `message` when GitHub is unreachable or no release exists yet. Includes `download_url`, `sha256`, and version/commit fields for the panel to drive upgrades.",
+                auth: "Bearer token",
+                response: r#"{"check_ok":true,"update_available":false,"current_version":"0.1.0","current_commit":"abc1234","latest_version":null,"download_url":null,"sha256":null,"message":null}"#,
+                source: "application/src/routes/api/system/update.rs",
+            },
+            RouteDoc {
+                method: "POST",
+                path: "/api/system/update/apply",
+                operation_id: "post_system_update_apply",
+                title: "Apply update from GitHub",
+                description: "Downloads the platform binary from the latest GitHub release, verifies SHA256, replaces the running executable, and optionally restarts the daemon. Requires `remote.upgrade: true`. Returns 202 Accepted while the download runs in the background.",
+                auth: "Bearer token",
+                response: r#"{"scheduled":true,"restart":true,"delay_ms":0,"channel":"stable","update_available":true}"#,
+                source: "application/src/routes/api/system/update.rs",
+            },
+        ],
     },
     ApiGroup {
         id: "api-system-upgrade",
@@ -300,7 +312,10 @@ fn curl_example(route: &RouteDoc) -> String {
     if route.auth.contains("Bearer") {
         lines.push("-H 'Authorization: Bearer YOUR_TOKEN' \\".to_string());
     }
-    if route.method == "POST" && route.path.contains("/upgrade") {
+    if route.method == "POST" && route.path.contains("/update/apply") {
+        lines.push("-H 'Content-Type: application/json' \\".to_string());
+        lines.push("-d '{\"restart\":true,\"delay_ms\":750}'".to_string());
+    } else if route.method == "POST" && route.path.contains("/upgrade") {
         lines.push("-H 'Content-Type: application/json' \\".to_string());
         lines.push(
             "-d '{\"url\":\"https://example.com/featherfly\",\"sha256\":\"...\",\"restart_command\":\"systemctl\",\"restart_command_args\":[\"restart\",\"featherfly\"]}'".to_string(),
