@@ -5,6 +5,7 @@ use std::{collections::HashMap, pin::Pin, sync::Arc};
 
 mod diagnostics;
 mod install;
+mod update;
 mod version;
 
 pub type ExecutorFunc = dyn Fn(
@@ -129,5 +130,10 @@ pub fn commands(cli: CliCommandGroupBuilder) -> CliCommandGroupBuilder {
         "diagnostics",
         "Collects diagnostic information for support and troubleshooting.",
         diagnostics::DiagnosticsCommand,
+    )
+    .add_command(
+        "update",
+        "Check GitHub for updates or install a newer FeatherFly build.",
+        update::UpdateCommand,
     )
 }

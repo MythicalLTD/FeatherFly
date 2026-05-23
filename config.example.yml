@@ -13,3 +13,8 @@ system:
   tmp_directory: /tmp/featherfly
   username: featherfly
   pid_file: /var/run/featherfly/daemon.pid
+
+updates:
+  channel: stable
+  check_on_startup: true
+  ignore_panel_upgrades: false

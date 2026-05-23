@@ -2,6 +2,8 @@ use crate::routes::State;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 mod overview;
+mod update;
+mod upgrade;
 
 mod get {
     use crate::{
@@ -45,5 +47,7 @@ pub fn router(state: &State) -> OpenApiRouter<State> {
     OpenApiRouter::new()
         .routes(routes!(get::route))
         .nest("/overview", overview::router(state))
+        .nest("/update", update::router(state))
+        .nest("/upgrade", upgrade::router(state))
         .with_state(state.clone())
 }

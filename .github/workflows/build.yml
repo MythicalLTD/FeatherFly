@@ -1,4 +1,4 @@
-name: Dev Build
+name: Release Nightly
 
 on:
   push:
@@ -12,7 +12,7 @@ env:
 
 jobs:
   dist:
-    name: Release build (${{ matrix.build }})
+    name: Dist
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -20,13 +20,25 @@ jobs:
         build:
           - x86_64-linux
           - aarch64-linux
+          - riscv64-linux
+          - ppc64le-linux
         include:
           - build: x86_64-linux
             os: ubuntu-24.04
-            target: x86_64-unknown-linux-gnu
+            target: x86_64-unknown-linux-musl
+            crt_static: true
           - build: aarch64-linux
             os: ubuntu-24.04
-            target: aarch64-unknown-linux-gnu
+            target: aarch64-unknown-linux-musl
+            crt_static: true
+          - build: riscv64-linux
+            os: ubuntu-24.04
+            target: riscv64gc-unknown-linux-gnu
+            crt_static: false
+          - build: ppc64le-linux
+            os: ubuntu-24.04
+            target: powerpc64le-unknown-linux-gnu
+            crt_static: false
 
     steps:
       - name: Checkout sources
@@ -41,11 +53,10 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: dev-${{ matrix.target }}
+          shared-key: nightly-${{ matrix.target }}
           cache-on-failure: true
 
       - name: Cache cross
-        if: matrix.build == 'aarch64-linux'
         uses: actions/cache@v4
         id: cross-cache
         with:
@@ -53,56 +64,65 @@ jobs:
           key: cross-${{ runner.os }}-v1
 
       - name: Install cross
-        if: matrix.build == 'aarch64-linux' && steps.cross-cache.outputs.cache-hit != 'true'
+        if: steps.cross-cache.outputs.cache-hit != 'true'
         run: cargo install cross --git https://github.com/cross-rs/cross --locked
 
-      - name: Run tests
-        run: |
-          if [ "${{ matrix.build }}" = "aarch64-linux" ]; then
-            cross test --release --target ${{ matrix.target }}
-          else
-            cargo test --release
-          fi
+      - name: Run cargo test
+        run: cross test --release --target ${{ matrix.target }}
 
       - name: Build release binary
         run: |
-          mkdir -p dist
-          if [ "${{ matrix.build }}" = "aarch64-linux" ]; then
-            cross build --release --target ${{ matrix.target }}
-            cp "target/${{ matrix.target }}/release/$BIN_NAME" "dist/$BIN_NAME-dev-${{ matrix.build }}"
+          if [ "${{ matrix.crt_static }}" = "true" ]; then
+            RUSTFLAGS="-C target-feature=+crt-static" \
+              cross build --release --target ${{ matrix.target }}
           else
-            cargo build --release
-            cp "target/release/$BIN_NAME" "dist/$BIN_NAME-dev-${{ matrix.build }}"
+            cross build --release --target ${{ matrix.target }}
           fi
 
-      - name: Upload dev binary
+      - name: Prepare binary with platform name
+        run: |
+          mkdir -p dist
+          cp "target/${{ matrix.target }}/release/$BIN_NAME" "dist/$BIN_NAME-${{ matrix.build }}"
+
+      - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.PROJECT_NAME }}-dev-${{ matrix.build }}-${{ github.sha }}
-          path: dist/${{ env.BIN_NAME }}-dev-${{ matrix.build }}
-          retention-days: 14
+          name: ${{ env.PROJECT_NAME }}-${{ matrix.build }}
+          path: dist/${{ env.BIN_NAME }}-${{ matrix.build }}
 
-  summary:
-    name: Dev build summary
+  publish-nightly:
+    name: Publish nightly release
     needs: [dist]
     runs-on: ubuntu-24.04
-    if: always()
+    permissions:
+      contents: write
 
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
 
-      - name: Extract version
-        id: version
-        run: echo "val=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name==\"featherfly\") | .version')" >> $GITHUB_OUTPUT
-
-      - name: Write job summary
+      - name: Prepare release assets
         run: |
-          {
-            echo "## FeatherFly dev build"
-            echo
-            echo "- Commit: \`${{ github.sha }}\`"
-            echo "- Version: \`${{ steps.version.outputs.val }}\`"
-            echo "- Branch: \`${{ github.ref_name }}\`"
-            echo "- Artifacts: \`featherfly-dev-x86_64-linux-${{ github.sha }}\`, \`featherfly-dev-aarch64-linux-${{ github.sha }}\`"
-          } >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p release-assets
+          find artifacts -type f ! -name 'SHA256SUMS' -exec cp {} release-assets/ \;
+          cd release-assets
+          sha256sum featherfly-* > SHA256SUMS
+          ls -la
+
+      - name: Publish nightly GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES="Automated nightly build from [\`${{ github.sha }}\`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})."
+
+          if gh release view nightly >/dev/null 2>&1; then
+            gh release upload nightly release-assets/* --clobber
+            gh release edit nightly --prerelease --title "Nightly" --notes "$NOTES"
+          else
+            gh release create nightly release-assets/* \
+              --prerelease \
+              --title "Nightly" \
+              --notes "$NOTES"
+          fi

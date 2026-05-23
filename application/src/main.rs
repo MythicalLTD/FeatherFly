@@ -32,6 +32,7 @@ mod config;
 mod docs;
 mod response;
 mod routes;
+mod update;
 
 #[cfg(not(unix))]
 compile_error!("FeatherFly only supports Unix-like systems");
@@ -42,6 +43,7 @@ const GIT_BRANCH: &str = env!("CARGO_GIT_BRANCH");
 const TARGET: &str = env!("CARGO_TARGET");
 
 const DEFAULT_CONFIG_PATH: &str = "/etc/featherfly/config.yml";
+pub(crate) const GITHUB_REPO: &str = "mythicalltd/featherfly";
 pub(crate) const GITHUB_REPOSITORY: &str = "https://github.com/mythicalltd/featherfly";
 pub(crate) const PROJECT_WEBSITE: &str = "https://featherpanel.com";
 pub(crate) const PROJECT_LICENSE: &str = "MIT";
@@ -211,6 +213,29 @@ async fn main_rt() {
 
         if !config.load().api.disable_openapi_docs {
             tracing::info!("api docs available at http://{}/docs", address);
+        }
+
+        if config.load().updates.check_on_startup
+            && config.load().updates.channel != crate::update::UpdateChannel::Disabled
+        {
+            let channel = config.load().updates.channel;
+            tokio::spawn(async move {
+                match crate::update::check_update(channel).await {
+                    Ok(status) if status.update_available => {
+                        tracing::info!(
+                            channel = ?status.channel,
+                            latest_version = ?status.latest_version,
+                            latest_commit = ?status.latest_commit,
+                            download_url = ?status.download_url,
+                            "a newer FeatherFly build is available on GitHub"
+                        );
+                    }
+                    Ok(_) => {}
+                    Err(err) => {
+                        tracing::debug!("startup update check failed: {err:#}");
+                    }
+                }
+            });
         }
 
         match axum::serve(

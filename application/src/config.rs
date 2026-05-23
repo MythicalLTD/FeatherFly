@@ -51,6 +51,9 @@ pub struct InnerConfig {
 
     #[serde(default)]
     pub system: SystemConfig,
+
+    #[serde(default)]
+    pub updates: UpdatesConfig,
 }
 
 #[derive(Debug, Deserialize, Serialize, DefaultFromSerde)]
@@ -81,6 +84,26 @@ pub struct SystemConfig {
 
     #[serde(default = "system_pid_file")]
     pub pid_file: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, DefaultFromSerde)]
+pub struct UpdatesConfig {
+    #[serde(default = "updates_channel_default")]
+    pub channel: crate::update::UpdateChannel,
+
+    #[serde(default = "updates_check_on_startup_default")]
+    pub check_on_startup: bool,
+
+    #[serde(default)]
+    pub ignore_panel_upgrades: bool,
+}
+
+fn updates_channel_default() -> crate::update::UpdateChannel {
+    crate::update::UpdateChannel::Stable
+}
+
+fn updates_check_on_startup_default() -> bool {
+    true
 }
 
 pub struct Config {
@@ -305,6 +328,7 @@ mod tests {
                 username: "featherfly".into(),
                 pid_file: "/tmp/featherfly-test/featherfly.pid".into(),
             },
+            updates: UpdatesConfig::default(),
         };
 
         let error = super::Config::validate_inner(&inner).unwrap_err();
