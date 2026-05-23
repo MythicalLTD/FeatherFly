@@ -49,6 +49,7 @@ async fn main_rt() -> Result<(), i32> {
 
     if matches.subcommand().is_none() {
         print_banner();
+        return featherfly::daemon::start(&config_path, debug).await;
     }
 
     let config =
@@ -80,7 +81,8 @@ async fn main_rt() -> Result<(), i32> {
         }
     }
 
-    featherfly::daemon::start(&config_path, debug).await
+    cli.print_help();
+    Ok(())
 }
 
 fn main() {

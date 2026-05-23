@@ -3,7 +3,6 @@ use arc_swap::ArcSwap;
 use serde::{Deserialize, Serialize};
 use serde_default::DefaultFromSerde;
 use std::{
-    fs::File,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -179,11 +178,21 @@ impl Config {
         debug: bool,
         is_subcommand: bool,
     ) -> Result<(Arc<Self>, ConfigGuard), anyhow::Error> {
-        let file = File::open(path).context(format!("failed to open config file {path}"))?;
-        let reader = std::io::BufReader::new(file);
-        let mut inner: InnerConfig = serde_norway::from_reader(reader)
-            .context(format!("failed to parse config file {path}"))?;
+        let raw = std::fs::read(path).context(format!("failed to read config file {path}"))?;
+        let inner = Self::parse_preview(&raw)?;
+        Self::open_from_inner(inner, path, debug, is_subcommand)
+    }
 
+    pub fn parse_preview(bytes: &[u8]) -> Result<InnerConfig, anyhow::Error> {
+        serde_norway::from_slice(bytes).context("failed to parse config yaml")
+    }
+
+    pub fn open_from_inner(
+        mut inner: InnerConfig,
+        path: &str,
+        debug: bool,
+        is_subcommand: bool,
+    ) -> Result<(Arc<Self>, ConfigGuard), anyhow::Error> {
         if debug {
             inner.debug = true;
             inner.system.root_directory = "./data".into();

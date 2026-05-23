@@ -1,9 +1,14 @@
 mod events;
 pub mod middleware;
+pub mod request_middleware;
+pub mod routes;
 
 use anyhow::Context;
-use events::{EmitOutcome, EventBus, SharedEventBus};
-use featherfly_plugin_sdk::{FEATHERFLY_PLUGIN_API_VERSION, HostApi, PluginEntry, PluginEvent};
+use events::{EmitOutcome, EventBus, RegisteredRoute, RequestHookOutcome, SharedEventBus};
+use featherfly_plugin_sdk::{
+    ConfigMutateCallback, FEATHERFLY_PLUGIN_API_VERSION, HostApi, PluginEntry, PluginEvent,
+    RequestHookCallback, RequestHookPhase,
+};
 use libloading::Library;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -63,11 +68,44 @@ impl PluginRegistry {
             .unwrap_or(0)
     }
 
+    #[must_use]
+    pub fn routes(&self) -> Vec<RegisteredRoute> {
+        self.event_bus
+            .lock()
+            .map(|bus| bus.routes().to_vec())
+            .unwrap_or_default()
+    }
+
     pub fn emit(&self, event: PluginEvent, payload: &[u8]) -> EmitOutcome {
         self.event_bus
             .lock()
             .map(|bus| bus.emit(event, payload))
             .unwrap_or_default()
+    }
+
+    pub fn mutate_config(&self, input: &[u8]) -> Vec<u8> {
+        self.event_bus
+            .lock()
+            .map(|bus| bus.mutate_config(input))
+            .unwrap_or_else(|_| input.to_vec())
+    }
+
+    pub fn run_request_hooks(
+        &self,
+        phase: RequestHookPhase,
+        route: &str,
+        method: &str,
+        headers_json: &[u8],
+        body: &[u8],
+    ) -> RequestHookOutcome {
+        self.event_bus
+            .lock()
+            .map(|bus| bus.run_request_hooks(phase, route, method, headers_json, body))
+            .unwrap_or_else(|_| events::RequestHookOutcome {
+                respond: false,
+                status: 200,
+                body: Vec::new(),
+            })
     }
 
     pub fn shutdown_all(&self) {
@@ -108,11 +146,7 @@ impl PluginRegistry {
     }
 }
 
-pub fn load_directory(
-    directory: &Path,
-    enabled: bool,
-    config_payload: &[u8],
-) -> Result<PluginRegistry, anyhow::Error> {
+pub fn load_directory(directory: &Path, enabled: bool) -> Result<PluginRegistry, anyhow::Error> {
     let event_bus = Arc::new(Mutex::new(EventBus::new()));
 
     if !enabled {
@@ -121,11 +155,6 @@ pub fn load_directory(
             plugins: Vec::new(),
             event_bus,
         });
-    }
-
-    {
-        let bus = event_bus.lock().expect("plugin event bus poisoned");
-        bus.emit(PluginEvent::ConfigLoaded, config_payload);
     }
 
     if !directory.exists() {
@@ -182,6 +211,7 @@ pub fn load_directory(
     tracing::info!(
         count = plugins.len(),
         hooks = hook_count,
+        routes = event_bus.lock().map(|b| b.routes().len()).unwrap_or(0),
         "plugin load complete"
     );
 
@@ -258,6 +288,9 @@ fn build_host_api(hook_state: &HookRegistration) -> HostApi {
         hook_state: (hook_state as *const HookRegistration).cast_mut().cast(),
         register_hook: Some(register_hook_trampoline),
         register_json_hook: Some(register_json_hook_trampoline),
+        register_config_hook: Some(register_config_hook_trampoline),
+        register_request_hook: Some(register_request_hook_trampoline),
+        register_route: Some(register_route_trampoline),
         log_info: Some(log_info_trampoline),
     }
 }
@@ -306,6 +339,79 @@ extern "C" fn register_json_hook_trampoline(
         callback,
     );
     0
+}
+
+extern "C" fn register_config_hook_trampoline(
+    callback: ConfigMutateCallback,
+    user_data: *mut core::ffi::c_void,
+) -> i32 {
+    if user_data.is_null() {
+        return -1;
+    }
+
+    let registration = unsafe { &*(user_data.cast::<HookRegistration>()) };
+    let Ok(mut bus) = registration.bus.lock() else {
+        return -2;
+    };
+
+    bus.register_config_hook(registration.plugin_name.clone(), callback);
+    0
+}
+
+extern "C" fn register_request_hook_trampoline(
+    phase: u32,
+    route_pattern_ptr: *const u8,
+    route_pattern_len: usize,
+    callback: RequestHookCallback,
+    user_data: *mut core::ffi::c_void,
+) -> i32 {
+    if user_data.is_null() {
+        return -1;
+    }
+
+    let registration = unsafe { &*(user_data.cast::<HookRegistration>()) };
+    let Ok(route_pattern) = read_bytes(route_pattern_ptr, route_pattern_len) else {
+        return -2;
+    };
+    let Ok(mut bus) = registration.bus.lock() else {
+        return -3;
+    };
+
+    bus.register_request_hook(
+        registration.plugin_name.clone(),
+        phase,
+        route_pattern,
+        callback,
+    );
+    0
+}
+
+extern "C" fn register_route_trampoline(
+    method: u32,
+    path_ptr: *const u8,
+    path_len: usize,
+    callback: featherfly_plugin_sdk::RouteHandlerCallback,
+    user_data: *mut core::ffi::c_void,
+) -> i32 {
+    if user_data.is_null() {
+        return -1;
+    }
+
+    let registration = unsafe { &*(user_data.cast::<HookRegistration>()) };
+    let Ok(path) = read_bytes(path_ptr, path_len) else {
+        return -2;
+    };
+    let Ok(mut bus) = registration.bus.lock() else {
+        return -3;
+    };
+
+    match bus.register_route(registration.plugin_name.clone(), method, path, callback) {
+        Ok(()) => 0,
+        Err(err) => {
+            tracing::warn!(plugin = %registration.plugin_name, error = %err, "failed to register plugin route");
+            -4
+        }
+    }
 }
 
 extern "C" fn log_info_trampoline(message_ptr: *const u8, message_len: usize) {

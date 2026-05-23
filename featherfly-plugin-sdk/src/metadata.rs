@@ -32,6 +32,10 @@ pub const CAPABILITIES: &[&str] = &[
     "Listen to daemon lifecycle events (startup, shutdown, config load)",
     "Run code when other plugins finish loading",
     "Log messages to the daemon log via log_info",
+    "Rewrite config YAML before the daemon applies settings (config.mutate)",
+    "Intercept inbound HTTP requests before handlers run (request.intercept)",
+    "Inject request middleware layers (middleware.inject)",
+    "Register new HTTP routes on the daemon router (route.register)",
     "Modify JSON API response bodies before they are sent to clients",
     "Inject, remove, or rewrite action steps in API responses",
     "Cancel remaining handlers for the same event (lifecycle hooks only)",
@@ -41,27 +45,35 @@ pub const OVERVIEW: &str = r#"FeatherFly plugins are native shared libraries (`.
 
 A plugin exports one symbol: `featherfly_plugin_entry`. The daemon loads each `.so`, checks the plugin API version, calls `init`, and keeps the library in memory until shutdown.
 
-Plugins register hooks during `init`. There are two hook systems:
+Plugins register hooks during `init`. Hook systems:
 
 1. **Lifecycle events** — callbacks fired at fixed points (config loaded, daemon started, etc.).
-2. **JSON mutation hooks** — callbacks that receive JSON, may rewrite it, and return modified output for HTTP responses.
+2. **Config mutation** — rewrite raw YAML before settings are applied.
+3. **Request hooks** — run before HTTP handlers (`request.intercept`, `middleware.inject`).
+4. **Plugin routes** — register new HTTP endpoints on the daemon router.
+5. **JSON mutation hooks** — callbacks that receive JSON, may rewrite it, and return modified output for HTTP responses.
 
 All hooks for a given target run in **plugin load order** (alphabetical by filename in the plugins directory)."#;
 
-pub const LIFECYCLE: &str = r#"1. Daemon reads config.yml
-2. `config.loaded` event fires (payload = raw YAML bytes)
-3. Each `.so` in the plugins directory is loaded
-4. For each plugin: `init(host)` runs — register hooks here
-5. After each plugin init: `plugin.loaded` event fires (payload = plugin name)
-6. `daemon.starting` fires before HTTP routes are wired
-7. HTTP server starts listening
-8. `daemon.started` fires (payload = listen address, e.g. `127.0.0.1:9090`)
-9. On shutdown: `daemon.stopping` fires, then each plugin's `shutdown` runs"#;
+pub const LIFECYCLE: &str = r#"1. Daemon reads config.yml (raw bytes)
+2. Each `.so` in the plugins directory is loaded
+3. For each plugin: `init(host)` runs — register hooks here (including config.mutate)
+4. After each plugin init: `plugin.loaded` event fires (payload = plugin name)
+5. Registered config.mutate hooks rewrite the YAML pipeline
+6. Final config is parsed and applied (directories, logging, pid file)
+7. `config.loaded` fires with the post-mutation YAML bytes
+8. `daemon.starting` fires before HTTP routes are wired
+9. HTTP server starts (core routes + plugin routes; request middleware stack active)
+10. `daemon.started` fires (payload = listen address, e.g. `127.0.0.1:9090`)
+11. On shutdown: `daemon.stopping` fires, then each plugin's `shutdown` runs"#;
 
 pub const HOST_API: &str = r#"During init, FeatherFly passes a HostApi struct:
 
 - api_version — must match FEATHERFLY_PLUGIN_API_VERSION
 - register_hook — register a lifecycle event callback
+- register_config_hook — register a config YAML mutation callback
+- register_request_hook — register request.intercept or middleware.inject
+- register_route — register a plugin HTTP route (GET/POST/PUT/PATCH/DELETE)
 - register_json_hook — register a JSON mutation callback
 - log_info — write an info line to the daemon log
 
@@ -69,9 +81,12 @@ Register hooks only inside init. Callback pointers are kept until shutdown.
 
 init return codes: 0 = success. Any other value fails plugin load.
 
-JSON hook return codes:
-- JSON_MUTATE_MODIFIED (0) — output written via write_json_output
-- JSON_MUTATE_UNCHANGED (1) — keep input unchanged
+Return codes:
+- CONFIG_MUTATE_MODIFIED / JSON_MUTATE_MODIFIED (0) — output written via write_* helpers
+- CONFIG_MUTATE_UNCHANGED / JSON_MUTATE_UNCHANGED (1) — keep input unchanged
+- REQUEST_CONTINUE (0) — pass request to next hook/handler
+- REQUEST_RESPOND (1) — short-circuit with write_request_response
+- ROUTE_OK (0) — route handled via write_route_response
 - Negative — error; input is kept"#;
 
 pub const BUILD_AND_INSTALL: &str = r#"**Requirements:** same OS and CPU architecture as the FeatherFly binary (e.g. linux x86_64 musl build needs a musl-linked plugin).
@@ -398,7 +413,7 @@ This is intentionally **composable**: small plugins each do one job (add a field
 
 ### Versioning
 
-Plugin API **v3** (current) exposes lifecycle events + JSON mutation. Future hooks (see roadmap) will bump the API version so old plugins keep loading safely when new hook types appear."#;
+Plugin API **v4** (current) exposes lifecycle events, config mutation, request hooks, plugin routes, and JSON mutation. Future hooks will bump the API version so old plugins keep loading safely when new hook types appear."#;
 
 pub const PLANNED_HOOKS: &[PlannedHookDoc] = &[
     PlannedHookDoc {
@@ -433,25 +448,25 @@ pub const PLANNED_HOOKS: &[PlannedHookDoc] = &[
     },
     PlannedHookDoc {
         name: "config.mutate",
-        status: "planned",
+        status: "available",
         summary: "Rewrite config YAML bytes before FeatherFly applies settings.",
         mixin_role: "Mixin on config load — inject defaults, strip keys, env-specific overrides.",
     },
     PlannedHookDoc {
         name: "request.intercept",
-        status: "planned",
+        status: "available",
         summary: "Run before an HTTP handler; inspect method, path, headers.",
         mixin_role: "Mixin on inbound requests — auth plugins, rate limits, audit logging.",
     },
     PlannedHookDoc {
         name: "route.register",
-        status: "research",
+        status: "available",
         summary: "Let plugins expose new HTTP routes through the daemon router.",
         mixin_role: "Extend the API surface without forking FeatherFly.",
     },
     PlannedHookDoc {
         name: "middleware.inject",
-        status: "research",
+        status: "available",
         summary: "Insert Axum middleware layers from plugins.",
         mixin_role: "Cross-cutting concerns (tracing, CORS overrides) as plugins.",
     },

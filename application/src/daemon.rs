@@ -23,28 +23,56 @@ async fn handle_request(req: Request, next: Next) -> Result<Response<Body>, Stat
 }
 
 pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
-    let (config, _guard) = match crate::config::Config::open(config_path, debug, false) {
-        Ok(result) => result,
+    let raw = match std::fs::read(config_path) {
+        Ok(bytes) => bytes,
         Err(err) => {
-            eprintln!("failed to load configuration: {err:#?}");
+            eprintln!("failed to read config file {config_path}: {err:#?}");
             return Err(1);
         }
     };
-    tracing::info!("config loaded from {}", config_path);
 
-    let plugin_registry = {
-        let inner = config.load();
-        crate::plugins::load_directory(
-            std::path::Path::new(&inner.system.plugins_directory),
-            inner.plugins.enabled,
-            inner.app_name.as_bytes(),
-        )
-        .unwrap_or_else(|err| {
-            tracing::error!("failed to load plugins: {err:#}");
-            crate::plugins::PluginRegistry::empty()
-        })
+    let mut preview = match crate::config::Config::parse_preview(&raw) {
+        Ok(inner) => inner,
+        Err(err) => {
+            eprintln!("failed to parse config file {config_path}: {err:#?}");
+            return Err(1);
+        }
     };
 
+    if debug {
+        preview.system.plugins_directory = "./data/plugins".into();
+    }
+
+    let plugin_registry = crate::plugins::load_directory(
+        std::path::Path::new(&preview.system.plugins_directory),
+        preview.plugins.enabled,
+    )
+    .unwrap_or_else(|err| {
+        tracing::error!("failed to load plugins: {err:#}");
+        crate::plugins::PluginRegistry::empty()
+    });
+
+    let raw = plugin_registry.mutate_config(&raw);
+
+    let inner = match crate::config::Config::parse_preview(&raw) {
+        Ok(inner) => inner,
+        Err(err) => {
+            eprintln!("failed to parse config after plugin mutation: {err:#?}");
+            return Err(1);
+        }
+    };
+
+    let (config, _guard) =
+        match crate::config::Config::open_from_inner(inner, config_path, debug, false) {
+            Ok(result) => result,
+            Err(err) => {
+                eprintln!("failed to apply configuration: {err:#?}");
+                return Err(1);
+            }
+        };
+    tracing::info!("config loaded from {}", config_path);
+
+    plugin_registry.emit(featherfly_plugin_sdk::PluginEvent::ConfigLoaded, &raw);
     plugin_registry.emit(featherfly_plugin_sdk::PluginEvent::DaemonStarting, b"");
 
     let state = Arc::new(crate::routes::AppState {
@@ -61,12 +89,21 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
 
     let app = OpenApiRouter::new()
         .merge(crate::routes::router(&state))
+        .merge(crate::plugins::routes::router(&state))
         .fallback(|_req: Request| async move {
             ApiResponse::error("route not found")
                 .with_status(StatusCode::NOT_FOUND)
                 .into_response()
         })
         .layer(axum::middleware::from_fn(handle_request))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            crate::plugins::request_middleware::inject_middleware,
+        ))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            crate::plugins::request_middleware::intercept_middleware,
+        ))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             crate::plugins::middleware::response_middleware,

@@ -36,6 +36,13 @@ fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..")
 }
 
+fn crate_from_running_line(line: &str) -> Option<String> {
+    let start = line.find("deps/")? + 5;
+    let rest = &line[start..];
+    let end = rest.find('-')?;
+    Some(rest[..end].replace('_', "-"))
+}
+
 fn collect_inventory() -> Vec<TestEntry> {
     let output = Command::new("cargo")
         .args(["test", "--workspace", "--", "--list", "--format", "terse"])
@@ -52,20 +59,29 @@ fn collect_inventory() -> Vec<TestEntry> {
 
     let text = String::from_utf8_lossy(&output.stdout);
     let mut entries = Vec::new();
+    let mut current_crate = String::from("featherfly");
 
     for line in text.lines() {
+        if line.contains("Running unittests") {
+            if let Some(crate_name) = crate_from_running_line(line) {
+                current_crate = normalize_crate_name(&crate_name);
+            }
+            continue;
+        }
+
         let Some((qualified, _)) = line.split_once(": test") else {
             continue;
         };
+
         let parts: Vec<_> = qualified.split("::").collect();
         if parts.len() < 2 {
             continue;
         }
+
         let name = parts.last().unwrap().to_string();
         let module = parts[..parts.len() - 1].join("::");
-        let crate_name = parts[0].to_string();
         entries.push(TestEntry {
-            crate_name,
+            crate_name: current_crate.clone(),
             module,
             name,
         });
@@ -77,13 +93,50 @@ fn collect_inventory() -> Vec<TestEntry> {
     entries
 }
 
+fn normalize_crate_name(raw: &str) -> String {
+    match raw {
+        "featherfly" => "featherfly".into(),
+        "generate-docs" | "generate_docs" => "featherfly (generate-docs)".into(),
+        "featherfly-docgen" | "featherfly_docgen" => "featherfly-docgen".into(),
+        "featherfly-plugin-sdk" | "featherfly_plugin_sdk" => "featherfly-plugin-sdk".into(),
+        other => other.replace('_', "-"),
+    }
+}
+
+fn extract_count(line: &str, label: &str) -> usize {
+    for part in line.split(';') {
+        let part = part.trim();
+        let Some(idx) = part.find(label) else {
+            continue;
+        };
+        let before = part[..idx].trim();
+        if let Some(num) = before.split_whitespace().last()
+            && let Ok(n) = num.parse()
+        {
+            return n;
+        }
+    }
+    0
+}
+
+fn parse_counts(line: &str) -> Option<(usize, usize, usize)> {
+    if !line.contains("test result:") {
+        return None;
+    }
+    Some((
+        extract_count(line, " passed"),
+        extract_count(line, " failed"),
+        extract_count(line, " ignored"),
+    ))
+}
+
 fn run_tests_if_requested() -> TestRunSummary {
     if std::env::var("DOCS_RUN_TESTS").ok().as_deref() != Some("1") {
         return TestRunSummary::default();
     }
 
     let output = Command::new("cargo")
-        .args(["test", "--workspace", "--", "--format", "terse"])
+        .args(["test", "--workspace"])
         .current_dir(workspace_root())
         .output();
 
@@ -105,18 +158,15 @@ fn run_tests_if_requested() -> TestRunSummary {
     };
 
     for line in text.lines() {
-        if let Some(rest) = line.strip_prefix("test result:") {
-            for part in rest.split(',') {
-                let part = part.trim();
-                if let Some(n) = part.strip_suffix(" passed") {
-                    summary.passed = n.trim().parse().unwrap_or(0);
-                } else if let Some(n) = part.strip_suffix(" failed") {
-                    summary.failed = n.trim().parse().unwrap_or(0);
-                } else if let Some(n) = part.strip_suffix(" ignored") {
-                    summary.ignored = n.trim().parse().unwrap_or(0);
-                }
-            }
+        if !line.contains("test result:") {
+            continue;
         }
+        let Some((passed, failed, ignored)) = parse_counts(line) else {
+            continue;
+        };
+        summary.passed += passed;
+        summary.failed += failed;
+        summary.ignored += ignored;
     }
 
     summary
@@ -125,7 +175,13 @@ fn run_tests_if_requested() -> TestRunSummary {
 fn page_body(inventory: &[TestEntry], summary: &TestRunSummary) -> String {
     let mut status = String::new();
     if summary.ran {
-        let ok = summary.failed == 0;
+        let status_text = if summary.failed > 0 {
+            "Failures detected"
+        } else if summary.passed == 0 {
+            "No tests recorded"
+        } else {
+            "All passed"
+        };
         status.push_str(&format!(
             "<h2>Last run</h2>
 <div class=\"meta-grid\">
@@ -134,10 +190,7 @@ fn page_body(inventory: &[TestEntry], summary: &TestRunSummary) -> String {
   <div class=\"meta-item\"><div class=\"meta-label\">Ignored</div><div class=\"meta-value\">{}</div></div>
   <div class=\"meta-item\"><div class=\"meta-label\">Status</div><div class=\"meta-value\">{}</div></div>
 </div>",
-            summary.passed,
-            summary.failed,
-            summary.ignored,
-            if ok { "All passed" } else { "Failures detected" }
+            summary.passed, summary.failed, summary.ignored, status_text,
         ));
         if !summary.output.is_empty() {
             status.push_str(&format!(

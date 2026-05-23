@@ -18,6 +18,8 @@ mod get {
         hooks: usize,
         events: Vec<&'static str>,
         json_targets: Vec<&'static str>,
+        request_phases: Vec<&'static str>,
+        plugin_routes: usize,
         plugins: Vec<PluginSummary>,
         actions: Vec<ApiAction>,
     }
@@ -38,6 +40,11 @@ mod get {
             hooks: state.plugins.hook_count(),
             events: featherfly_plugin_sdk::PluginEvent::all_names(),
             json_targets: featherfly_plugin_sdk::JsonMutateTarget::all_names(),
+            request_phases: vec![
+                featherfly_plugin_sdk::RequestHookPhase::Intercept.name(),
+                featherfly_plugin_sdk::RequestHookPhase::Middleware.name(),
+            ],
+            plugin_routes: state.plugins.routes().len(),
             plugins: state.plugins.summaries(),
             actions: plugins_actions(),
         })

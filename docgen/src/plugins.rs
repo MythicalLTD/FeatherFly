@@ -89,7 +89,6 @@ pub fn generate_plugin_docs(output: &Path) -> std::io::Result<()> {
         &example_page(),
     )?;
 
-    // Remove legacy flat pages if present
     let _ = std::fs::remove_file(output.join("events.html"));
     let _ = std::fs::remove_file(output.join("json-hooks.html"));
 

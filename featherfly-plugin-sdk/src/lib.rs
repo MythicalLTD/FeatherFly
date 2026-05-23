@@ -1,6 +1,6 @@
 pub mod metadata;
 
-pub const FEATHERFLY_PLUGIN_API_VERSION: u32 = 3;
+pub const FEATHERFLY_PLUGIN_API_VERSION: u32 = 4;
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,6 +75,28 @@ impl JsonMutateTarget {
     }
 }
 
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RequestHookPhase {
+    Intercept = 1,
+    Middleware = 2,
+}
+
+impl RequestHookPhase {
+    #[must_use]
+    pub const fn as_u32(self) -> u32 {
+        self as u32
+    }
+
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Intercept => "request.intercept",
+            Self::Middleware => "middleware.inject",
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct EventContext {
@@ -99,6 +121,47 @@ pub struct JsonMutateContext {
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
+pub struct ConfigMutateContext {
+    pub yaml_in_ptr: *const u8,
+    pub yaml_in_len: usize,
+    pub yaml_out_ptr: *mut u8,
+    pub yaml_out_capacity: usize,
+    pub yaml_out_len: *mut usize,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct RequestHookContext {
+    pub phase: u32,
+    pub method: u32,
+    pub path_ptr: *const u8,
+    pub path_len: usize,
+    pub headers_json_ptr: *const u8,
+    pub headers_json_len: usize,
+    pub body_in_ptr: *const u8,
+    pub body_in_len: usize,
+    pub status_code: *mut u16,
+    pub response_body_ptr: *mut u8,
+    pub response_body_capacity: usize,
+    pub response_body_len: *mut usize,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct RouteHandlerContext {
+    pub method: u32,
+    pub path_ptr: *const u8,
+    pub path_len: usize,
+    pub body_in_ptr: *const u8,
+    pub body_in_len: usize,
+    pub body_out_ptr: *mut u8,
+    pub body_out_capacity: usize,
+    pub body_out_len: *mut usize,
+    pub status_code: *mut u16,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct HookResult {
     pub cancelled: u8,
 }
@@ -117,6 +180,9 @@ impl HookResult {
 
 pub type HookCallback = extern "C" fn(*const EventContext) -> HookResult;
 pub type JsonMutateCallback = extern "C" fn(*const JsonMutateContext) -> i32;
+pub type ConfigMutateCallback = extern "C" fn(*const ConfigMutateContext) -> i32;
+pub type RequestHookCallback = extern "C" fn(*const RequestHookContext) -> i32;
+pub type RouteHandlerCallback = extern "C" fn(*const RouteHandlerContext) -> i32;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
@@ -134,6 +200,27 @@ pub struct HostApi {
             route_pattern_ptr: *const u8,
             route_pattern_len: usize,
             callback: JsonMutateCallback,
+            user_data: *mut core::ffi::c_void,
+        ) -> i32,
+    >,
+    pub register_config_hook: Option<
+        extern "C" fn(callback: ConfigMutateCallback, user_data: *mut core::ffi::c_void) -> i32,
+    >,
+    pub register_request_hook: Option<
+        extern "C" fn(
+            phase: u32,
+            route_pattern_ptr: *const u8,
+            route_pattern_len: usize,
+            callback: RequestHookCallback,
+            user_data: *mut core::ffi::c_void,
+        ) -> i32,
+    >,
+    pub register_route: Option<
+        extern "C" fn(
+            method: u32,
+            path_ptr: *const u8,
+            path_len: usize,
+            callback: RouteHandlerCallback,
             user_data: *mut core::ffi::c_void,
         ) -> i32,
     >,
@@ -191,6 +278,15 @@ impl PluginEntry {
 pub const JSON_MUTATE_UNCHANGED: i32 = 1;
 pub const JSON_MUTATE_MODIFIED: i32 = 0;
 
+pub const CONFIG_MUTATE_UNCHANGED: i32 = 1;
+pub const CONFIG_MUTATE_MODIFIED: i32 = 0;
+
+pub const REQUEST_CONTINUE: i32 = 0;
+pub const REQUEST_RESPOND: i32 = 1;
+
+pub const ROUTE_OK: i32 = 0;
+pub const ROUTE_ERROR: i32 = -1;
+
 pub const HTTP_METHOD_GET: u32 = 1;
 pub const HTTP_METHOD_POST: u32 = 2;
 pub const HTTP_METHOD_PUT: u32 = 3;
@@ -238,6 +334,61 @@ pub unsafe fn register_json_hook(
     )
 }
 
+pub unsafe fn register_config_hook(host: *const HostApi, callback: ConfigMutateCallback) -> i32 {
+    if host.is_null() {
+        return -1;
+    }
+
+    let host = unsafe { &*host };
+    let Some(register_config_hook) = host.register_config_hook else {
+        return -2;
+    };
+
+    register_config_hook(callback, host.hook_state)
+}
+
+pub unsafe fn register_request_hook(
+    host: *const HostApi,
+    phase: RequestHookPhase,
+    route_pattern: &str,
+    callback: RequestHookCallback,
+) -> i32 {
+    if host.is_null() {
+        return -1;
+    }
+
+    let host = unsafe { &*host };
+    let Some(register_request_hook) = host.register_request_hook else {
+        return -2;
+    };
+
+    register_request_hook(
+        phase.as_u32(),
+        route_pattern.as_ptr(),
+        route_pattern.len(),
+        callback,
+        host.hook_state,
+    )
+}
+
+pub unsafe fn register_route(
+    host: *const HostApi,
+    method: u32,
+    path: &str,
+    callback: RouteHandlerCallback,
+) -> i32 {
+    if host.is_null() {
+        return -1;
+    }
+
+    let host = unsafe { &*host };
+    let Some(register_route) = host.register_route else {
+        return -2;
+    };
+
+    register_route(method, path.as_ptr(), path.len(), callback, host.hook_state)
+}
+
 pub unsafe fn log_info(host: *const HostApi, message: &str) {
     if host.is_null() {
         return;
@@ -250,20 +401,85 @@ pub unsafe fn log_info(host: *const HostApi, message: &str) {
 }
 
 pub fn write_json_output(ctx: &JsonMutateContext, json: &[u8]) -> i32 {
-    if ctx.json_out_ptr.is_null() || ctx.json_out_len.is_null() {
+    write_bytes(
+        ctx.json_out_ptr,
+        ctx.json_out_capacity,
+        ctx.json_out_len,
+        json,
+    )
+    .map(|()| JSON_MUTATE_MODIFIED)
+    .unwrap_or(-2)
+}
+
+pub fn write_yaml_output(ctx: &ConfigMutateContext, yaml: &[u8]) -> i32 {
+    write_bytes(
+        ctx.yaml_out_ptr,
+        ctx.yaml_out_capacity,
+        ctx.yaml_out_len,
+        yaml,
+    )
+    .map(|()| CONFIG_MUTATE_MODIFIED)
+    .unwrap_or(-2)
+}
+
+pub fn write_request_response(ctx: &RequestHookContext, status: u16, body: &[u8]) -> i32 {
+    if ctx.status_code.is_null() {
         return -1;
     }
 
-    if json.len() > ctx.json_out_capacity {
-        return -2;
+    unsafe {
+        *ctx.status_code = status;
+    }
+
+    write_bytes(
+        ctx.response_body_ptr,
+        ctx.response_body_capacity,
+        ctx.response_body_len,
+        body,
+    )
+    .map(|()| REQUEST_RESPOND)
+    .unwrap_or(-2)
+}
+
+pub fn write_route_response(ctx: &RouteHandlerContext, status: u16, body: &[u8]) -> i32 {
+    if ctx.status_code.is_null() {
+        return -1;
     }
 
     unsafe {
-        std::ptr::copy_nonoverlapping(json.as_ptr(), ctx.json_out_ptr, json.len());
-        *ctx.json_out_len = json.len();
+        *ctx.status_code = status;
     }
 
-    JSON_MUTATE_MODIFIED
+    write_bytes(
+        ctx.body_out_ptr,
+        ctx.body_out_capacity,
+        ctx.body_out_len,
+        body,
+    )
+    .map(|()| ROUTE_OK)
+    .unwrap_or(-2)
+}
+
+fn write_bytes(
+    out_ptr: *mut u8,
+    capacity: usize,
+    out_len_ptr: *mut usize,
+    data: &[u8],
+) -> Result<(), ()> {
+    if out_ptr.is_null() || out_len_ptr.is_null() {
+        return Err(());
+    }
+
+    if data.len() > capacity {
+        return Err(());
+    }
+
+    unsafe {
+        std::ptr::copy_nonoverlapping(data.as_ptr(), out_ptr, data.len());
+        *out_len_ptr = data.len();
+    }
+
+    Ok(())
 }
 
 #[allow(dead_code)]
@@ -308,6 +524,36 @@ macro_rules! hook {
 macro_rules! hook_json {
     ($host:expr, $target:expr, $route:expr, $callback:ident) => {
         let status = unsafe { $crate::register_json_hook($host, $target, $route, $callback) };
+        if status != 0 {
+            return status;
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! hook_config {
+    ($host:expr, $callback:ident) => {
+        let status = unsafe { $crate::register_config_hook($host, $callback) };
+        if status != 0 {
+            return status;
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! hook_request {
+    ($host:expr, $phase:expr, $route:expr, $callback:ident) => {
+        let status = unsafe { $crate::register_request_hook($host, $phase, $route, $callback) };
+        if status != 0 {
+            return status;
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! route {
+    ($host:expr, $method:expr, $path:expr, $callback:ident) => {
+        let status = unsafe { $crate::register_route($host, $method, $path, $callback) };
         if status != 0 {
             return status;
         }
