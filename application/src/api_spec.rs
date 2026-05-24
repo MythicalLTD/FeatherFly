@@ -68,5 +68,8 @@ fn dummy_state(app_name: &str) -> std::sync::Arc<AppState> {
         config: crate::config::Config::for_openapi_docs(app_name),
         plugins: crate::plugins::PluginRegistry::empty(),
         probe_guard: crate::middlewares::probe::ProbeGuard::new(),
+        docker: None,
+        panel: arc_swap::ArcSwapOption::from(None),
+        cache: None,
     })
 }

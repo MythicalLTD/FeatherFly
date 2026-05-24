@@ -1,3 +1,4 @@
+use arc_swap::ArcSwapOption;
 use serde::Serialize;
 use std::{sync::Arc, time::Instant};
 use utoipa::ToSchema;
@@ -21,6 +22,9 @@ pub struct AppState {
     pub config: Arc<crate::config::Config>,
     pub plugins: crate::plugins::PluginRegistry,
     pub probe_guard: crate::middlewares::probe::ProbeGuard,
+    pub docker: Option<Arc<crate::docker::DockerManager>>,
+    pub panel: ArcSwapOption<crate::websocket::PanelHandle>,
+    pub cache: Option<Arc<crate::cache::Cache>>,
 }
 
 pub type State = Arc<AppState>;

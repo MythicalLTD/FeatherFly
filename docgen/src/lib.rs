@@ -1,6 +1,7 @@
 mod api;
 mod html;
 mod plugins;
+mod plugins_txt;
 mod search;
 mod sitemap;
 mod tests;
@@ -11,6 +12,7 @@ use std::path::{Path, PathBuf};
 
 pub use api::generate_api_docs;
 pub use plugins::generate_plugin_docs;
+pub use plugins_txt::write_plugins_reference;
 pub use tests::generate_test_docs;
 
 pub fn default_output_dir() -> PathBuf {
@@ -22,6 +24,7 @@ pub fn generate_all(output: &Path, openapi: &utoipa::openapi::OpenApi) -> std::i
     fs::create_dir_all(output.join("api"))?;
 
     generate_plugin_docs(&output.join("plugins"))?;
+    write_plugins_reference(&output.join("plugins-reference.txt"))?;
     generate_api_docs(&output.join("api"), openapi)?;
     generate_test_docs(&output.join("tests"))?;
     write_hub(&output.join("index.html"))?;
@@ -37,6 +40,7 @@ pub fn generate_all(output: &Path, openapi: &utoipa::openapi::OpenApi) -> std::i
 pub fn generate_minimal(output: &Path) -> std::io::Result<()> {
     fs::create_dir_all(output.join("plugins"))?;
     generate_plugin_docs(&output.join("plugins"))?;
+    write_plugins_reference(&output.join("plugins-reference.txt"))?;
     write_hub(&output.join("index.html"))?;
     search::write_index(output)?;
     sitemap::write(output)?;
@@ -177,6 +181,11 @@ fn hub_body() -> String {
                 "plugins/hooks-roadmap.html",
                 "Hooks roadmap",
                 "All available plugin hooks.",
+            ),
+            (
+                "plugins-reference.txt",
+                "Plugin reference (TXT)",
+                "Complete plain-text hook catalog — all 75 events.",
             ),
         ]),
         test_card = html::card_grid(&[(

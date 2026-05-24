@@ -15,6 +15,8 @@ struct GetResponse {
     enabled: bool,
     directory: String,
     hooks: usize,
+    /// Full hook catalog: GET /api/system/plugins/schema
+    pub schema_path: &'static str,
     events: Vec<&'static str>,
     json_targets: Vec<&'static str>,
     request_phases: Vec<&'static str>,
@@ -37,6 +39,7 @@ pub async fn get(state: GetState) -> ApiResponseResult {
         enabled: inner.plugins.enabled,
         directory: inner.system.plugins_directory.clone(),
         hooks: state.plugins.hook_count(),
+        schema_path: "/api/system/plugins/schema",
         events: featherfly_plugin_sdk::PluginEvent::all_names(),
         json_targets: featherfly_plugin_sdk::JsonMutateTarget::all_names(),
         request_phases: vec![
@@ -48,6 +51,17 @@ pub async fn get(state: GetState) -> ApiResponseResult {
         actions: plugins_actions(),
     })
     .ok()
+}
+
+#[utoipa::path(
+    get,
+    path = "/schema",
+    operation_id = "get_system_plugins_schema",
+    security(("bearer_auth" = [])),
+    responses((status = OK, body = inline(crate::plugins::PluginHookSchema))),
+)]
+pub async fn schema(_state: GetState) -> ApiResponseResult {
+    ApiResponse::new_serialized(crate::plugins::build_hook_schema()).ok()
 }
 
 #[derive(ToSchema, Serialize)]
@@ -68,7 +82,7 @@ struct ReloadResponse {
     ),
 )]
 pub async fn reload(state: GetState) -> ApiResponseResult {
-    if !state.config.load().remote.restart {
+    if !state.config.load().management.restart {
         return ApiResponse::error("remote restart is disabled (required for plugin reload)")
             .with_status(StatusCode::FORBIDDEN)
             .ok();

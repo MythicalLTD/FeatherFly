@@ -26,6 +26,60 @@ pub enum PluginEvent {
     UpgradeStarted = 19,
     UpgradeCompleted = 20,
     UpgradeFailed = 21,
+    NodeIdentityGenerated = 22,
+    DockerReady = 23,
+    DockerUnavailable = 24,
+    ContainerCreated = 25,
+    ContainerStarted = 26,
+    ContainerStopped = 27,
+    ContainerRemoved = 28,
+    ContainerRestarted = 29,
+    ContainerInspected = 30,
+    ImagePulled = 31,
+    ContainerOperationFailed = 32,
+    ContainerLogsStreamed = 33,
+    ContainerExecStarted = 34,
+    ContainerExecEnded = 35,
+    PanelConnected = 36,
+    PanelDisconnected = 37,
+    PanelMessageReceived = 38,
+    PanelMessageSent = 39,
+    StatsCollected = 40,
+    SiteProvisioned = 41,
+    SiteDestroyed = 42,
+    ProxyRegistered = 43,
+    SslProvisioned = 44,
+    VolumeCreated = 45,
+    VolumeRemoved = 46,
+    SiteNetworkCreated = 47,
+    DeployStarted = 48,
+    DeployFinished = 49,
+    DeployFailed = 50,
+    BackupStarted = 51,
+    BackupCompleted = 52,
+    BackupFailed = 53,
+    BackupRestored = 54,
+    WebhookReceived = 55,
+    DatabaseCreated = 56,
+    DatabaseRemoved = 57,
+    TaskScheduled = 58,
+    TaskExecuted = 59,
+    TaskFailed = 60,
+    DnsSynced = 61,
+    DeployBlueGreenStarted = 62,
+    DeployBlueGreenFinished = 63,
+    MailAccountCreated = 64,
+    MailAccountRemoved = 65,
+    MailSynced = 66,
+    RoundcubeProvisioned = 67,
+    FtpAccountCreated = 68,
+    FtpAccountRemoved = 69,
+    FtpGatewaySynced = 70,
+    SiteExecCompleted = 71,
+    FileManagerChanged = 72,
+    SiteStatsCollected = 73,
+    DnsDnssecUpdated = 74,
+    HostingLimitsUpdated = 75,
 }
 
 impl PluginEvent {
@@ -58,6 +112,60 @@ impl PluginEvent {
             Self::UpgradeStarted => "upgrade.started",
             Self::UpgradeCompleted => "upgrade.completed",
             Self::UpgradeFailed => "upgrade.failed",
+            Self::NodeIdentityGenerated => "node.identity_generated",
+            Self::DockerReady => "docker.ready",
+            Self::DockerUnavailable => "docker.unavailable",
+            Self::ContainerCreated => "container.created",
+            Self::ContainerStarted => "container.started",
+            Self::ContainerStopped => "container.stopped",
+            Self::ContainerRemoved => "container.removed",
+            Self::ContainerRestarted => "container.restarted",
+            Self::ContainerInspected => "container.inspected",
+            Self::ImagePulled => "image.pulled",
+            Self::ContainerOperationFailed => "container.operation_failed",
+            Self::ContainerLogsStreamed => "container.logs_streamed",
+            Self::ContainerExecStarted => "container.exec_started",
+            Self::ContainerExecEnded => "container.exec_ended",
+            Self::PanelConnected => "panel.connected",
+            Self::PanelDisconnected => "panel.disconnected",
+            Self::PanelMessageReceived => "panel.message_received",
+            Self::PanelMessageSent => "panel.message_sent",
+            Self::StatsCollected => "stats.collected",
+            Self::SiteProvisioned => "site.provisioned",
+            Self::SiteDestroyed => "site.destroyed",
+            Self::ProxyRegistered => "proxy.registered",
+            Self::SslProvisioned => "ssl.provisioned",
+            Self::VolumeCreated => "volume.created",
+            Self::VolumeRemoved => "volume.removed",
+            Self::SiteNetworkCreated => "site.network_created",
+            Self::DeployStarted => "deploy.started",
+            Self::DeployFinished => "deploy.finished",
+            Self::DeployFailed => "deploy.failed",
+            Self::BackupStarted => "backup.started",
+            Self::BackupCompleted => "backup.completed",
+            Self::BackupFailed => "backup.failed",
+            Self::BackupRestored => "backup.restored",
+            Self::WebhookReceived => "webhook.received",
+            Self::DatabaseCreated => "database.created",
+            Self::DatabaseRemoved => "database.removed",
+            Self::TaskScheduled => "task.scheduled",
+            Self::TaskExecuted => "task.executed",
+            Self::TaskFailed => "task.failed",
+            Self::DnsSynced => "dns.synced",
+            Self::DeployBlueGreenStarted => "deploy.blue_green_started",
+            Self::DeployBlueGreenFinished => "deploy.blue_green_finished",
+            Self::MailAccountCreated => "mail.account_created",
+            Self::MailAccountRemoved => "mail.account_removed",
+            Self::MailSynced => "mail.synced",
+            Self::RoundcubeProvisioned => "mail.roundcube_provisioned",
+            Self::FtpAccountCreated => "ftp.account_created",
+            Self::FtpAccountRemoved => "ftp.account_removed",
+            Self::FtpGatewaySynced => "ftp.gateway_synced",
+            Self::SiteExecCompleted => "site.exec_completed",
+            Self::FileManagerChanged => "file_manager.changed",
+            Self::SiteStatsCollected => "site.stats_collected",
+            Self::DnsDnssecUpdated => "dns.dnssec_updated",
+            Self::HostingLimitsUpdated => "hosting.limits_updated",
         }
     }
 
@@ -604,5 +712,29 @@ mod tests {
 
         let entry = PluginEntry::new("demo", "0.1.0", Some(init), None);
         assert_eq!(entry.descriptor.api_version, FEATHERFLY_PLUGIN_API_VERSION);
+    }
+
+    #[test]
+    fn event_catalog_is_complete() {
+        assert_eq!(metadata::EVENT_DOCS.len(), 75);
+        let mut ids: Vec<u32> = metadata::EVENT_DOCS
+            .iter()
+            .map(|d| d.event.as_u32())
+            .collect();
+        ids.sort_unstable();
+        assert_eq!(ids, (1..=75).collect::<Vec<_>>());
+
+        for doc in metadata::EVENT_DOCS {
+            assert_eq!(doc.event.name(), doc.name);
+            assert!(doc.register_example.contains("hook!"));
+        }
+    }
+
+    #[test]
+    fn hook_guides_cover_mixin_types() {
+        assert!(!metadata::CONFIG_HOOK_DOCS.is_empty());
+        assert_eq!(metadata::JSON_HOOK_DOCS.len(), 2);
+        assert!(!metadata::REQUEST_HOOK_DOCS.is_empty());
+        assert!(!metadata::ROUTE_HOOK_DOCS.is_empty());
     }
 }

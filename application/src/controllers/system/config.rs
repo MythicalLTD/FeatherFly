@@ -25,7 +25,7 @@ struct GetResponse {
 )]
 pub async fn get(state: GetState) -> ApiResponseResult {
     let inner = state.config.load();
-    if !inner.remote.config_edit {
+    if !inner.management.config_edit {
         return ApiResponse::error("remote config read is disabled")
             .with_status(StatusCode::FORBIDDEN)
             .ok();
@@ -51,7 +51,7 @@ pub async fn get(state: GetState) -> ApiResponseResult {
     ApiResponse::new_serialized(GetResponse {
         path: state.config.path.clone(),
         yaml,
-        editable: inner.remote.config_edit,
+        editable: inner.management.config_edit,
     })
     .ok()
 }
@@ -84,7 +84,7 @@ struct PutResponse {
     ),
 )]
 pub async fn put(state: GetState, axum::Json(body): axum::Json<PutPayload>) -> ApiResponseResult {
-    if !state.config.load().remote.config_edit {
+    if !state.config.load().management.config_edit {
         return ApiResponse::error("remote config edit is disabled")
             .with_status(StatusCode::FORBIDDEN)
             .ok();
@@ -103,7 +103,7 @@ pub async fn put(state: GetState, axum::Json(body): axum::Json<PutPayload>) -> A
     };
 
     let restart_scheduled =
-        body.restart_if_required && requires_restart && state.config.load().remote.restart;
+        body.restart_if_required && requires_restart && state.config.load().management.restart;
 
     if restart_scheduled {
         plugin_events::emit_json(

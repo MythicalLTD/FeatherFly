@@ -35,7 +35,7 @@ struct Response {
     ),
 )]
 pub async fn post(state: GetState, axum::Json(body): axum::Json<Payload>) -> ApiResponseResult {
-    if !state.config.load().remote.restart {
+    if !state.config.load().management.restart {
         return ApiResponse::error("remote restart is disabled")
             .with_status(StatusCode::FORBIDDEN)
             .ok();

@@ -602,7 +602,7 @@ const PLUGIN_GROUPS: &[NavGroup] = &[
     NavGroup {
         overview: Some(NavItem {
             id: "events",
-            label: "Events (21)",
+            label: "Events (28)",
             path: "plugins/events/index.html",
         }),
         children: &[],

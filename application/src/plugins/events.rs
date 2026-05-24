@@ -346,7 +346,7 @@ pub fn code_to_method(code: u32) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use featherfly_plugin_sdk::HookResult;
+    use featherfly_plugin_sdk::{EventContext, HookResult, PluginEvent};
 
     extern "C" fn cancel_hook(_ctx: *const EventContext) -> HookResult {
         HookResult::cancel()
@@ -365,5 +365,18 @@ mod tests {
         let outcome = bus.emit(PluginEvent::DaemonStarted, b"");
         assert!(outcome.cancelled);
         assert_eq!(outcome.handlers_run, 1);
+    }
+
+    #[test]
+    fn event_bus_accepts_every_lifecycle_event() {
+        let mut bus = EventBus::new();
+        for doc in PluginEvent::all() {
+            bus.register("test", doc.event.as_u32(), continue_hook);
+        }
+        for doc in PluginEvent::all() {
+            let outcome = bus.emit(doc.event, br#"{"probe":true}"#);
+            assert_eq!(outcome.handlers_run, 1, "event {}", doc.name);
+            assert!(!outcome.cancelled);
+        }
     }
 }

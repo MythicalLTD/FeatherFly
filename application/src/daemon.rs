@@ -77,7 +77,7 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
         }
     };
 
-    let (config, _guard) =
+    let (config, _guard, identity_generated) =
         match crate::config::Config::open_from_inner(inner, config_path, debug, false) {
             Ok(result) => result,
             Err(err) => {
@@ -87,10 +87,97 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
         };
     tracing::debug!(path = config_path, "configuration loaded");
 
+    if identity_generated {
+        let inner = config.load();
+        crate::utils::plugin_events::emit_json(
+            &plugin_registry,
+            featherfly_plugin_sdk::PluginEvent::NodeIdentityGenerated,
+            &crate::utils::plugin_events::NodeIdentityPayload {
+                uuid: &inner.uuid,
+                token_id: &inner.token_id,
+            },
+        );
+    }
+
+    if let Err(err) =
+        crate::templates::ensure_builtin_templates(&config.load().hosting.templates_directory)
+    {
+        tracing::warn!(%err, "failed to install builtin site templates");
+    }
+
     plugin_registry.log_startup_summary();
     plugin_registry.emit(featherfly_plugin_sdk::PluginEvent::ConfigLoaded, &raw);
     tracing::debug!("emitting daemon.starting lifecycle event");
     plugin_registry.emit(featherfly_plugin_sdk::PluginEvent::DaemonStarting, b"");
+
+    let docker = if config.load().docker.enabled {
+        let socket = config.load().docker.socket.clone();
+        match crate::docker::bootstrap_system(&config.load()).await {
+            Ok(Some(result)) => {
+                let api_version = result
+                    .manager
+                    .version()
+                    .await
+                    .ok()
+                    .and_then(|v| v.api_version);
+                crate::utils::plugin_events::emit_json(
+                    &plugin_registry,
+                    featherfly_plugin_sdk::PluginEvent::DockerReady,
+                    &crate::utils::plugin_events::DockerReadyPayload {
+                        socket: &socket,
+                        network: &config.load().docker.network.name,
+                        network_created: result.summary.docker_network
+                            == crate::docker::NetworkEnsureResult::Created,
+                        api_version,
+                    },
+                );
+                tracing::info!(
+                    socket = %socket,
+                    network = %config.load().docker.network.name,
+                    traefik = ?result.summary.traefik,
+                    docker_installed = result.summary.docker_installed,
+                    "docker bootstrap complete"
+                );
+                Some(result.manager)
+            }
+            Ok(None) => {
+                if config.load().docker.enabled {
+                    crate::utils::plugin_events::emit_json(
+                        &plugin_registry,
+                        featherfly_plugin_sdk::PluginEvent::DockerUnavailable,
+                        &crate::utils::plugin_events::DockerUnavailablePayload {
+                            socket: &socket,
+                            error: "docker engine not reachable".into(),
+                        },
+                    );
+                }
+                None
+            }
+            Err(err) => {
+                crate::utils::plugin_events::emit_json(
+                    &plugin_registry,
+                    featherfly_plugin_sdk::PluginEvent::DockerUnavailable,
+                    &crate::utils::plugin_events::DockerUnavailablePayload {
+                        socket: &socket,
+                        error: err.to_string(),
+                    },
+                );
+                tracing::warn!(%err, "docker bootstrap failed — container APIs disabled");
+                None
+            }
+        }
+    } else {
+        tracing::debug!("docker integration disabled in configuration");
+        None
+    };
+
+    let cache = match crate::cache::Cache::open(&config.load().system.data).await {
+        Ok(cache) => Some(Arc::new(cache)),
+        Err(err) => {
+            tracing::warn!(%err, "sqlite cache unavailable — panel idempotency disabled");
+            None
+        }
+    };
 
     let state = Arc::new(crate::routes::AppState {
         start_time: std::time::Instant::now(),
@@ -103,7 +190,25 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
         config: Arc::clone(&config),
         plugins: plugin_registry,
         probe_guard: crate::middlewares::probe::ProbeGuard::new(),
+        docker,
+        panel: arc_swap::ArcSwapOption::from(None),
+        cache,
     });
+
+    let panel_handle = crate::websocket::spawn_panel_client(Arc::clone(&state));
+    state.panel.store(Some(Arc::new(panel_handle)));
+
+    let reconcile = crate::hosting::reconcile_on_startup(&state).await;
+    tracing::info!(
+        sites = reconcile.sites_total,
+        started = reconcile.sites_started,
+        mail = reconcile.mail_synced,
+        ftp = reconcile.ftp_synced,
+        shared = reconcile.shared_stack,
+        "startup hosting reconcile complete"
+    );
+
+    crate::scheduler::spawn_scheduler(Arc::clone(&state));
 
     let app = OpenApiRouter::new()
         .merge(crate::routes::router(&state))

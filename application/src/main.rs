@@ -57,7 +57,7 @@ async fn main_rt() -> Result<(), i32> {
 
     if let Some((command, arg_matches)) = matches.remove_subcommand() {
         if let Some((func, arg_matches)) = cli.match_command(command, arg_matches) {
-            match func(config.as_ref().ok().map(|e| e.0.clone()), arg_matches).await {
+            match func(config.as_ref().ok().map(|(c, _, _)| c.clone()), arg_matches).await {
                 Ok(exit_code) => {
                     drop(config);
                     if exit_code != 0 {

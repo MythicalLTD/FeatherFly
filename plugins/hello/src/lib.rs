@@ -10,7 +10,12 @@ extern "C" fn init(host: *const HostApi) -> i32 {
     hook!(host, PluginEvent::DaemonStarted, on_daemon_started);
     hook!(host, PluginEvent::DaemonStopping, on_daemon_stopping);
     hook!(host, PluginEvent::RequestNotFound, on_request_not_found);
-    hook!(host, PluginEvent::ProbeClientBlocked, on_probe_blocked);
+    hook!(host, PluginEvent::DockerReady, on_docker_ready);
+    hook!(host, PluginEvent::ContainerCreated, on_container_created);
+    hook!(host, PluginEvent::ContainerRestarted, on_container_restarted);
+    hook!(host, PluginEvent::SiteProvisioned, on_site_provisioned);
+    hook!(host, PluginEvent::DatabaseCreated, on_database_created);
+    hook!(host, PluginEvent::MailAccountCreated, on_mail_account_created);
     hook_config!(host, on_config_mutate);
     hook_request!(
         host,
@@ -57,6 +62,48 @@ extern "C" fn on_daemon_stopping(_ctx: *const EventContext) -> HookResult {
 }
 
 extern "C" fn on_request_not_found(ctx: *const EventContext) -> HookResult {
+    let ctx = unsafe { &*ctx };
+    let payload = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
+    let _json = std::str::from_utf8(payload).unwrap_or_default();
+    HookResult::r#continue()
+}
+
+extern "C" fn on_docker_ready(ctx: *const EventContext) -> HookResult {
+    let ctx = unsafe { &*ctx };
+    let payload = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
+    let _json = std::str::from_utf8(payload).unwrap_or_default();
+    HookResult::r#continue()
+}
+
+extern "C" fn on_site_provisioned(ctx: *const EventContext) -> HookResult {
+    let ctx = unsafe { &*ctx };
+    let payload = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
+    let _json = std::str::from_utf8(payload).unwrap_or_default();
+    HookResult::r#continue()
+}
+
+extern "C" fn on_database_created(ctx: *const EventContext) -> HookResult {
+    let ctx = unsafe { &*ctx };
+    let payload = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
+    let _json = std::str::from_utf8(payload).unwrap_or_default();
+    HookResult::r#continue()
+}
+
+extern "C" fn on_mail_account_created(ctx: *const EventContext) -> HookResult {
+    let ctx = unsafe { &*ctx };
+    let payload = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
+    let _json = std::str::from_utf8(payload).unwrap_or_default();
+    HookResult::r#continue()
+}
+
+extern "C" fn on_container_restarted(ctx: *const EventContext) -> HookResult {
+    let ctx = unsafe { &*ctx };
+    let payload = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
+    let _json = std::str::from_utf8(payload).unwrap_or_default();
+    HookResult::r#continue()
+}
+
+extern "C" fn on_container_created(ctx: *const EventContext) -> HookResult {
     let ctx = unsafe { &*ctx };
     let payload = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
     let _json = std::str::from_utf8(payload).unwrap_or_default();

@@ -59,7 +59,11 @@ pub async fn middleware(
             .into_response());
     }
 
-    if !crate::utils::auth::validate_bearer_header(key, state.config.load().token.as_str()) {
+    if !crate::utils::auth::validate_bearer_header(
+        key,
+        state.config.load().token_id.as_str(),
+        state.config.load().token.as_str(),
+    ) {
         emit_auth_failed("invalid authorization token");
         return Ok(ApiResponse::error("invalid authorization token")
             .with_status(StatusCode::UNAUTHORIZED)

@@ -66,7 +66,7 @@ pub async fn apply(
     state: GetState,
     axum::Json(body): axum::Json<ApplyPayload>,
 ) -> ApiResponseResult {
-    if !state.config.load().remote.upgrade {
+    if !state.config.load().management.upgrade {
         return ApiResponse::error("remote upgrade is disabled")
             .with_status(StatusCode::FORBIDDEN)
             .ok();

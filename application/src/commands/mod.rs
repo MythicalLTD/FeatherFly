@@ -3,6 +3,7 @@
 use clap::{Arg, ArgMatches, Args, Command};
 use std::{collections::HashMap, pin::Pin, sync::Arc};
 
+mod configure;
 mod diagnostics;
 mod docs;
 mod install;
@@ -127,6 +128,11 @@ pub fn commands(cli: CliCommandGroupBuilder) -> CliCommandGroupBuilder {
         "install",
         "Install FeatherFly binary, config layout, and systemd unit.",
         install::InstallCommand,
+    )
+    .add_command(
+        "configure",
+        "Configure panel URL and authentication token (Wings-compatible).",
+        configure::ConfigureCommand,
     )
     .add_command(
         "diagnostics",

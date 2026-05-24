@@ -1,7 +1,8 @@
-mod events;
+pub mod events;
 pub mod middleware;
 pub mod request_middleware;
 pub mod routes;
+pub mod schema;
 
 use anyhow::Context;
 use events::{EmitOutcome, EventBus, RegisteredRoute, RequestHookOutcome, SharedEventBus};
@@ -14,6 +15,8 @@ use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use utoipa::ToSchema;
+
+pub use schema::{PluginHookSchema, build_hook_schema};
 
 pub const PLUGIN_ENTRY_SYMBOL: &[u8] = b"featherfly_plugin_entry";
 

@@ -6,6 +6,7 @@ use std::path::Path;
 use tokio::process::Command;
 
 const BIN_PATH: &str = "/usr/local/bin/featherfly";
+const ALIAS_PATH: &str = "/usr/local/bin/featherd";
 const CONFIG_DIR: &str = "/etc/featherfly";
 const CONFIG_PATH: &str = "/etc/featherfly/config.yml";
 const SERVICE_PATH: &str = "/etc/systemd/system/featherfly.service";
@@ -53,6 +54,7 @@ impl crate::commands::CliCommand<InstallArgs> for InstallCommand {
                 reload_systemd().await?;
 
                 println!("installed {BIN_PATH}");
+                println!("alias at {ALIAS_PATH}");
                 println!("config at {CONFIG_PATH}");
                 println!("run: systemctl enable --now featherfly");
 
@@ -70,6 +72,12 @@ fn install_binary(current: &Path) -> anyhow::Result<()> {
             .with_context(|| format!("failed to chmod {BIN_PATH}"))?;
     }
 
+    if Path::new(ALIAS_PATH).exists() {
+        fs::remove_file(ALIAS_PATH).ok();
+    }
+    std::os::unix::fs::symlink(BIN_PATH, ALIAS_PATH)
+        .with_context(|| format!("failed to create {ALIAS_PATH} symlink"))?;
+
     Ok(())
 }
 
@@ -77,6 +85,9 @@ fn install_layout() -> anyhow::Result<()> {
     for dir in [
         CONFIG_DIR,
         "/var/lib/featherfly",
+        "/var/lib/featherfly/volumes",
+        "/var/lib/featherfly/archives",
+        "/var/lib/featherfly/backups",
         "/var/lib/featherfly/plugins",
         "/var/log/featherfly",
         "/tmp/featherfly",

@@ -10,6 +10,9 @@ use utoipa::ToSchema;
 
 #[derive(ToSchema, Serialize)]
 struct Response<'a> {
+    uuid: &'a str,
+    token_id: &'a str,
+    remote: &'a str,
     architecture: &'static str,
     cpu_count: usize,
     kernel_version: String,
@@ -26,7 +29,11 @@ struct Response<'a> {
     responses((status = OK, body = inline(Response))),
 )]
 pub async fn get(state: GetState) -> ApiResponseResult {
+    let inner = state.config.load();
     ApiResponse::new_serialized(Response {
+        uuid: &inner.uuid,
+        token_id: &inner.token_id,
+        remote: &inner.remote,
         architecture: std::env::consts::ARCH,
         cpu_count: std::thread::available_parallelism()
             .map(|n| n.get())

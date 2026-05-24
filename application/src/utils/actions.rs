@@ -37,6 +37,11 @@ pub fn system_actions() -> Vec<ApiAction> {
             "POST /api/system/update/apply",
         ),
         ApiAction::get("list_plugins", "List plugins", "GET /api/system/plugins"),
+        ApiAction::get(
+            "plugin_hook_schema",
+            "Plugin hooks & events schema",
+            "GET /api/system/plugins/schema",
+        ),
         ApiAction::get("get_config", "Read config", "GET /api/system/config"),
         ApiAction::get("edit_config", "Edit config", "PUT /api/system/config"),
         ApiAction::get(
@@ -54,6 +59,11 @@ pub fn plugins_actions() -> Vec<ApiAction> {
             "reload_plugins",
             "Reload plugins",
             "POST /api/system/plugins/reload",
+        ),
+        ApiAction::get(
+            "plugin_hook_schema",
+            "Plugin hook schema (OpenAPI-style)",
+            "GET /api/system/plugins/schema",
         ),
         ApiAction::get("plugin_docs", "Plugin developer docs", "GET /docs/plugins"),
     ]

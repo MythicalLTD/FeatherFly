@@ -1,13 +1,29 @@
 pub mod api_spec;
+pub mod backups;
+pub mod cache;
 pub mod commands;
 pub mod config;
 pub mod controllers;
 pub mod daemon;
 pub mod daemon_control;
+pub mod databases;
+pub mod deployments;
+pub mod dns;
+pub mod docker;
+pub mod files;
+pub mod ftp;
+pub mod hosting;
+pub mod mail;
 pub mod middlewares;
 pub mod plugins;
+pub mod proxy;
+pub mod remote;
 pub mod routes;
+pub mod scheduler;
+pub mod sites;
+pub mod templates;
 pub mod utils;
+pub mod websocket;
 
 #[cfg(not(unix))]
 compile_error!("FeatherFly only supports Unix-like systems");
