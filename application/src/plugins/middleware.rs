@@ -5,6 +5,9 @@ use axum::{
     http::{Response, header},
     middleware::Next,
 };
+use featherfly_plugin_sdk::PluginEvent;
+
+use crate::utils::plugin_events::{self, PluginJsonMutatedPayload};
 
 pub async fn response_middleware(
     State(state): State<AppState>,
@@ -42,6 +45,18 @@ pub async fn response_middleware(
     let mutated_body = state
         .plugins
         .mutate_response_body(&path, &method, &body_json);
+    if mutated_body != body_json {
+        plugin_events::emit_state_event(
+            &state,
+            PluginEvent::PluginJsonResponseMutated,
+            &PluginJsonMutatedPayload {
+                method: &method,
+                path: &path,
+                input_len: body_json.len(),
+                output_len: mutated_body.len(),
+            },
+        );
+    }
 
     if let Ok(next_value) = serde_json::from_slice::<serde_json::Value>(&mutated_body) {
         value = next_value;
@@ -53,6 +68,18 @@ pub async fn response_middleware(
     let mutated_actions = state
         .plugins
         .mutate_response_actions(&path, &method, &actions_input);
+    if mutated_actions != actions_input {
+        plugin_events::emit_state_event(
+            &state,
+            PluginEvent::PluginJsonActionsMutated,
+            &PluginJsonMutatedPayload {
+                method: &method,
+                path: &path,
+                input_len: actions_input.len(),
+                output_len: mutated_actions.len(),
+            },
+        );
+    }
 
     if (had_actions || mutated_actions.as_slice() != b"[]")
         && let Ok(actions) = serde_json::from_slice::<serde_json::Value>(&mutated_actions)

@@ -151,6 +151,11 @@ fn hub_body() -> String {
                 "Grouped routes with curl examples and source links.",
             ),
             (
+                "api/endpoints.html",
+                "All endpoints",
+                "Generated method/path index from OpenAPI.",
+            ),
+            (
                 "api/health.html",
                 "Health",
                 "Unauthenticated liveness probe.",
@@ -185,7 +190,7 @@ fn hub_body() -> String {
             (
                 "plugins-reference.txt",
                 "Plugin reference (TXT)",
-                "Complete plain-text hook catalog — all 83 events.",
+                "Complete plain-text hook catalog — every lifecycle event.",
             ),
         ]),
         test_card = html::card_grid(&[(

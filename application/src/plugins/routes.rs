@@ -7,8 +7,10 @@ use axum::{
     response::IntoResponse,
     routing::any,
 };
-use featherfly_plugin_sdk::ROUTE_OK;
+use featherfly_plugin_sdk::{PluginEvent, ROUTE_OK};
 use utoipa_axum::router::OpenApiRouter;
+
+use crate::utils::plugin_events::{self, PluginRouteFailedPayload, PluginRouteInvokedPayload};
 
 pub fn router(state: &AppState) -> OpenApiRouter<AppState> {
     let mut plugin_router = OpenApiRouter::new();
@@ -45,13 +47,25 @@ async fn dispatch_plugin_route(State(state): State<AppState>, req: Request) -> R
         return StatusCode::METHOD_NOT_ALLOWED.into_response();
     };
 
-    invoke_route(&route, req).await
+    invoke_route(&state, &route, req).await
 }
 
-async fn invoke_route(route: &RegisteredRoute, req: Request) -> Response<Body> {
+async fn invoke_route(state: &AppState, route: &RegisteredRoute, req: Request) -> Response<Body> {
     let body = match axum::body::to_bytes(req.into_body(), 1024 * 1024).await {
         Ok(bytes) => bytes.to_vec(),
-        Err(_) => return StatusCode::BAD_REQUEST.into_response(),
+        Err(_) => {
+            plugin_events::emit_state_event(
+                state,
+                PluginEvent::PluginRouteFailed,
+                &PluginRouteFailedPayload {
+                    plugin: &route.plugin,
+                    method: code_to_method(route.method),
+                    path: &route.path,
+                    error: "failed to read request body",
+                },
+            );
+            return StatusCode::BAD_REQUEST.into_response();
+        }
     };
 
     let mut out = vec![0_u8; body.len().max(4096).saturating_mul(2)];
@@ -72,10 +86,30 @@ async fn invoke_route(route: &RegisteredRoute, req: Request) -> Response<Body> {
 
     let result = (route.callback)(&ctx);
     if result != ROUTE_OK {
+        plugin_events::emit_state_event(
+            state,
+            PluginEvent::PluginRouteFailed,
+            &PluginRouteFailedPayload {
+                plugin: &route.plugin,
+                method: code_to_method(route.method),
+                path: &route.path,
+                error: "plugin route handler returned error",
+            },
+        );
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
 
     let mut response = Response::new(Body::from(out[..out_len].to_vec()));
     *response.status_mut() = StatusCode::from_u16(status).unwrap_or(StatusCode::OK);
+    plugin_events::emit_state_event(
+        state,
+        PluginEvent::PluginRouteInvoked,
+        &PluginRouteInvokedPayload {
+            plugin: &route.plugin,
+            method: code_to_method(route.method),
+            path: &route.path,
+            status: response.status().as_u16(),
+        },
+    );
     response
 }

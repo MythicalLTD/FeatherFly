@@ -100,6 +100,16 @@ pub const GROUPS: &[ApiGroup] = &[
                 response: r#"{"scheduled":true,"delay_ms":750,"note":"plugins are loaded at startup; a daemon restart is required to pick up changes"}"#,
                 source: "application/src/controllers/system/plugins.rs",
             },
+            RouteDoc {
+                method: "GET",
+                path: "/api/system/plugins/schema",
+                operation_id: "get_system_plugins_schema",
+                title: "Plugin hook schema",
+                description: "Returns the complete plugin hook catalog as JSON: lifecycle events, config hooks, request hooks, route hooks, JSON hooks, macros, examples, and API version metadata.",
+                auth: "Bearer token",
+                response: r#"{"api_version":6,"lifecycle_events":[...],"config_hooks":[...],"request_hooks":[...],"json_hooks":[...],"route_hooks":[...]}"#,
+                source: "application/src/controllers/system/plugins.rs",
+            },
         ],
     },
     ApiGroup {
@@ -214,6 +224,18 @@ pub fn generate_api_docs(output: &Path, openapi: &utoipa::openapi::OpenApi) -> s
         &overview_page(openapi),
     )?;
 
+    html::write_page(
+        &output.join("endpoints.html"),
+        "All endpoints",
+        PageContext::api("api-endpoints"),
+        &PageMeta::new(
+            "All FeatherFly HTTP API endpoints generated from OpenAPI.",
+            "api/endpoints.html",
+        )
+        .with_source("OpenAPI", "application/src/api_spec.rs"),
+        &endpoints_page(openapi),
+    )?;
+
     for group in GROUPS {
         html::write_page(
             &output.join(format!("{}.html", group.slug)),
@@ -227,8 +249,6 @@ pub fn generate_api_docs(output: &Path, openapi: &utoipa::openapi::OpenApi) -> s
             &group_page(group),
         )?;
     }
-
-    let _ = std::fs::remove_file(output.join("endpoints.html"));
 
     Ok(())
 }
@@ -250,6 +270,8 @@ fn overview_page(openapi: &utoipa::openapi::OpenApi) -> String {
 <p>All routes except <code>/health</code> require <code>Authorization: Bearer &lt;token&gt;</code> matching <code>api.token</code> in config. {auth}</p>
 <h2>Response shape</h2>
 <p>Successful responses wrap data in the standard envelope. JSON mutation hooks run on the inner object before it is sent. {response}</p>
+<h2>Complete endpoint index</h2>
+<p>The curated pages below explain the major route groups. The generated <a href=\"endpoints.html\">all endpoints index</a> is built directly from OpenAPI and includes every documented method/path pair.</p>
 <h2>Route groups</h2>
 {cards}
 <h2>Plugin integration</h2>
@@ -264,6 +286,74 @@ fn overview_page(openapi: &utoipa::openapi::OpenApi) -> String {
         auth = html::github_source("application/src/middlewares/auth.rs", "Auth middleware"),
         response = html::github_source("application/src/utils/response.rs", "JSON responses"),
     )
+}
+
+fn endpoints_page(openapi: &utoipa::openapi::OpenApi) -> String {
+    let mut rows = String::new();
+    let mut count = 0_usize;
+
+    for (path, item) in &openapi.paths.paths {
+        for (method, operation) in operations(item) {
+            count += 1;
+            let operation_id = operation.operation_id.as_deref().unwrap_or("-");
+            let summary = operation
+                .summary
+                .as_deref()
+                .or(operation.description.as_deref())
+                .unwrap_or("");
+            rows.push_str(&format!(
+                "<tr><td><code>{method}</code></td><td><code>{path}</code></td><td><code>{operation_id}</code></td><td>{auth}</td><td>{summary}</td></tr>",
+                method = method,
+                path = html::html_escape(path),
+                operation_id = html::html_escape(operation_id),
+                auth = operation_auth(operation),
+                summary = html::html_escape(summary),
+            ));
+        }
+    }
+
+    format!(
+        "{header}
+<p>This page is generated from <code>openapi.json</code>, so it tracks every endpoint present in the machine-readable schema. Runtime plugin routes are listed in the live daemon OpenAPI document when plugins register them.</p>
+<p><strong>{count}</strong> documented method/path pairs.</p>
+<table><thead><tr><th>Method</th><th>Path</th><th>Operation</th><th>Auth</th><th>Summary</th></tr></thead><tbody>{rows}</tbody></table>
+<p><a href=\"index.html\">← HTTP API overview</a></p>",
+        header = html::page_header(
+            "All endpoints",
+            "Generated from the OpenAPI path table.",
+        ),
+        count = count,
+        rows = rows,
+    )
+}
+
+fn operations(
+    item: &utoipa::openapi::path::PathItem,
+) -> Vec<(&'static str, &utoipa::openapi::path::Operation)> {
+    let mut operations = Vec::new();
+    if let Some(operation) = &item.get {
+        operations.push(("GET", operation));
+    }
+    if let Some(operation) = &item.post {
+        operations.push(("POST", operation));
+    }
+    if let Some(operation) = &item.put {
+        operations.push(("PUT", operation));
+    }
+    if let Some(operation) = &item.patch {
+        operations.push(("PATCH", operation));
+    }
+    if let Some(operation) = &item.delete {
+        operations.push(("DELETE", operation));
+    }
+    operations
+}
+
+fn operation_auth(operation: &utoipa::openapi::path::Operation) -> &'static str {
+    match operation.security.as_ref() {
+        Some(security) if !security.is_empty() => "Bearer token",
+        _ => "None",
+    }
 }
 
 fn group_page(group: &ApiGroup) -> String {
@@ -333,4 +423,58 @@ fn curl_example(route: &RouteDoc) -> String {
         lines.push("-H 'Content-Type: application/json'".to_string());
     }
     lines.join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use utoipa::openapi::{
+        Info, OpenApi, Paths,
+        path::{HttpMethod, OperationBuilder},
+        response::Response,
+    };
+
+    #[test]
+    fn endpoints_page_lists_every_openapi_operation() {
+        let mut paths = Paths::new();
+        paths.add_path_operation(
+            "/api/example",
+            vec![HttpMethod::Get],
+            OperationBuilder::new()
+                .operation_id(Some("get_example"))
+                .response("200", Response::new("ok"))
+                .build(),
+        );
+        paths.add_path_operation(
+            "/api/example",
+            vec![HttpMethod::Post],
+            OperationBuilder::new()
+                .operation_id(Some("post_example"))
+                .response("201", Response::new("created"))
+                .build(),
+        );
+        let openapi = OpenApi::new(Info::new("test", "1.0.0"), paths);
+        let page = endpoints_page(&openapi);
+
+        assert!(page.contains("<code>GET</code>"));
+        assert!(page.contains("<code>POST</code>"));
+        assert!(page.contains("<code>/api/example</code>"));
+        assert!(page.contains("<code>get_example</code>"));
+        assert!(page.contains("<code>post_example</code>"));
+    }
+
+    #[test]
+    fn curated_plugin_docs_include_schema_endpoint() {
+        let plugin_group = GROUPS
+            .iter()
+            .find(|group| group.slug == "system-plugins")
+            .expect("plugin docs group");
+
+        assert!(
+            plugin_group
+                .routes
+                .iter()
+                .any(|route| route.path == "/api/system/plugins/schema")
+        );
+    }
 }

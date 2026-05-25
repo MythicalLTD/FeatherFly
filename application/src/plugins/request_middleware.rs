@@ -5,7 +5,9 @@ use axum::{
     http::{Response, StatusCode},
     middleware::Next,
 };
-use featherfly_plugin_sdk::RequestHookPhase;
+use featherfly_plugin_sdk::{PluginEvent, RequestHookPhase};
+
+use crate::utils::plugin_events::{self, PluginRequestShortCircuitedPayload};
 
 pub async fn intercept_middleware(
     State(state): State<AppState>,
@@ -60,6 +62,16 @@ async fn run_request_hooks(
             .run_request_hooks(phase, &path, &method, &headers_json, &body_bytes);
 
     if outcome.respond {
+        plugin_events::emit_state_event(
+            &state,
+            PluginEvent::PluginRequestShortCircuited,
+            &PluginRequestShortCircuitedPayload {
+                phase: phase.name(),
+                method: &method,
+                path: &path,
+                status: outcome.status,
+            },
+        );
         let mut response = Response::new(Body::from(outcome.body));
         *response.status_mut() = StatusCode::from_u16(outcome.status).unwrap_or(StatusCode::OK);
         return response;

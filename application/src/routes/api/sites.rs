@@ -45,9 +45,6 @@ pub fn router(state: &State) -> OpenApiRouter<State> {
         .routes(routes!(crate::controllers::sites::files_move))
         .routes(routes!(crate::controllers::sites::files_copy))
         .routes(routes!(crate::controllers::sites::files_archive))
-        .route(
-            "/{id}/deploy/webhook",
-            axum::routing::post(crate::controllers::sites::webhook_deploy),
-        )
+        .routes(routes!(crate::controllers::sites::webhook_deploy))
         .with_state(state.clone())
 }

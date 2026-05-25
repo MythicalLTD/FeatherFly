@@ -5,7 +5,7 @@ use utoipa::ToSchema;
 use crate::{
     cache::TaskRecord,
     routes::State,
-    utils::plugin_events::{self, TaskScheduledPayload},
+    utils::plugin_events::{self, TaskFailedPayload, TaskScheduledPayload},
 };
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, ToSchema)]
@@ -124,7 +124,18 @@ impl SchedulerService {
             .get_task(site_id, task_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("task not found"))?;
-        crate::scheduler::runner::execute_task(state, &task).await?;
+        if let Err(err) = crate::scheduler::runner::execute_task(state, &task).await {
+            plugin_events::emit_state_event(
+                state,
+                PluginEvent::TaskFailed,
+                &TaskFailedPayload {
+                    site_id: &task.site_id,
+                    task_id: &task.id,
+                    error: err.to_string(),
+                },
+            );
+            return Err(err);
+        }
         cache.mark_task_run(site_id, task_id).await?;
         Ok(())
     }

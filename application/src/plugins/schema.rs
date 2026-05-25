@@ -142,12 +142,14 @@ mod tests {
     #[test]
     fn schema_lists_all_lifecycle_events() {
         let schema = build_hook_schema();
-        assert_eq!(schema.lifecycle_events.len(), 83);
         assert_eq!(schema.lifecycle_events.len(), PluginEvent::all().len());
 
         let mut ids: Vec<u32> = schema.lifecycle_events.iter().map(|e| e.id).collect();
         ids.sort_unstable();
-        assert_eq!(ids, (1..=83).collect::<Vec<_>>());
+        assert_eq!(
+            ids,
+            (1..=PluginEvent::all().len() as u32).collect::<Vec<_>>()
+        );
     }
 
     #[test]

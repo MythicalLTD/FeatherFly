@@ -49,6 +49,7 @@ mod search {
             "plugins/json-hooks/response-body.html".into(),
             "plugins/json-hooks/response-actions.html".into(),
             "api/index.html".into(),
+            "api/endpoints.html".into(),
             "api/health.html".into(),
             "api/system.html".into(),
             "api/system-overview.html".into(),
@@ -68,5 +69,25 @@ mod search {
         }
 
         urls
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::search;
+    use featherfly_plugin_sdk::metadata::EVENT_DOCS;
+
+    #[test]
+    fn sitemap_urls_include_every_event_page_and_endpoint_index() {
+        let urls = search::all_urls();
+
+        assert!(urls.iter().any(|url| url == "api/endpoints.html"));
+        for doc in EVENT_DOCS {
+            let expected = format!("plugins/events/{}.html", doc.name.replace('.', "-"));
+            assert!(
+                urls.iter().any(|url| url == &expected),
+                "sitemap missing {expected}"
+            );
+        }
     }
 }

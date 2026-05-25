@@ -420,6 +420,21 @@ pub struct ExecWsQuery {
     pub tty: bool,
 }
 
+#[utoipa::path(
+    get,
+    path = "/{id}/exec/ws",
+    operation_id = "get_containers_exec_ws",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = String, Path, description = "Container ID or name"),
+        ("exec_id" = String, Query, description = "Exec session ID from POST /api/containers/{id}/exec"),
+        ("tty" = bool, Query, description = "Attach in TTY mode"),
+    ),
+    responses(
+        (status = 101, description = "WebSocket upgraded"),
+        (status = SERVICE_UNAVAILABLE, body = inline(crate::utils::response::ApiError)),
+    ),
+)]
 pub async fn exec_ws(
     ws: WebSocketUpgrade,
     state: GetState,

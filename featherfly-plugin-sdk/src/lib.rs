@@ -88,6 +88,12 @@ pub enum PluginEvent {
     ErrorPagesReady = 81,
     TraefikProvisioned = 82,
     HostingImagesPulled = 83,
+    PluginConfigMutated = 84,
+    PluginRequestShortCircuited = 85,
+    PluginJsonResponseMutated = 86,
+    PluginJsonActionsMutated = 87,
+    PluginRouteInvoked = 88,
+    PluginRouteFailed = 89,
 }
 
 impl PluginEvent {
@@ -182,6 +188,12 @@ impl PluginEvent {
             Self::ErrorPagesReady => "hosting.error_pages_ready",
             Self::TraefikProvisioned => "proxy.traefik_provisioned",
             Self::HostingImagesPulled => "hosting.images_pulled",
+            Self::PluginConfigMutated => "plugins.config_mutated",
+            Self::PluginRequestShortCircuited => "plugins.request_short_circuited",
+            Self::PluginJsonResponseMutated => "plugins.json_response_mutated",
+            Self::PluginJsonActionsMutated => "plugins.json_actions_mutated",
+            Self::PluginRouteInvoked => "plugins.route_invoked",
+            Self::PluginRouteFailed => "plugins.route_failed",
         }
     }
 
@@ -732,13 +744,15 @@ mod tests {
 
     #[test]
     fn event_catalog_is_complete() {
-        assert_eq!(metadata::EVENT_DOCS.len(), 83);
         let mut ids: Vec<u32> = metadata::EVENT_DOCS
             .iter()
             .map(|d| d.event.as_u32())
             .collect();
         ids.sort_unstable();
-        assert_eq!(ids, (1..=83).collect::<Vec<_>>());
+        assert_eq!(
+            ids,
+            (1..=metadata::EVENT_DOCS.len() as u32).collect::<Vec<_>>()
+        );
 
         for doc in metadata::EVENT_DOCS {
             assert_eq!(doc.event.name(), doc.name);

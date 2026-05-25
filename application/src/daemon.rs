@@ -65,6 +65,15 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
 
     if raw != raw_before {
         tracing::debug!("configuration updated by plugin config.mutate hooks");
+        crate::utils::plugin_events::emit_json(
+            &plugin_registry,
+            featherfly_plugin_sdk::PluginEvent::PluginConfigMutated,
+            &crate::utils::plugin_events::PluginConfigMutatedPayload {
+                hook_count: plugin_registry.config_hook_count(),
+                input_len: raw_before.len(),
+                output_len: raw.len(),
+            },
+        );
     }
 
     tracing::debug!(path = config_path, "applying configuration");
@@ -264,6 +273,7 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
     );
 
     let (mut router, openapi) = app.split_for_parts();
+    let openapi = crate::api_spec::add_plugin_routes(openapi, &state.plugins.routes());
     let openapi = crate::api_spec::finalize_openapi(openapi, &config.load().app_name);
 
     if !config.load().api.disable_openapi_docs {

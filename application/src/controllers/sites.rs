@@ -138,6 +138,15 @@ pub struct WebhookDeployBody {
     pub git_ref: Option<String>,
 }
 
+#[utoipa::path(
+    post,
+    path = "/{id}/deploy/webhook",
+    operation_id = "post_sites_deploy_webhook",
+    security(("bearer_auth" = [])),
+    params(("id" = String, Path)),
+    request_body = inline(WebhookDeployBody),
+    responses((status = OK, body = inline(ActionResponse))),
+)]
 pub async fn webhook_deploy(
     state: GetState,
     axum::extract::Path(id): axum::extract::Path<String>,

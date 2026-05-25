@@ -123,6 +123,11 @@ pub fn write_index(output: &Path) -> std::io::Result<()> {
             "rest routes authentication bearer token featherpanel",
         ),
         entry(
+            "All API endpoints",
+            "api/endpoints.html",
+            "complete generated openapi method path operation endpoint index",
+        ),
+        entry(
             "Health",
             "api/health.html",
             "liveness probe unauthenticated uptime",
@@ -235,5 +240,32 @@ fn entry(title: &str, url: &str, text: &str) -> SearchEntry {
         title: title.into(),
         url: url.into(),
         text: text.into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn search_index_includes_all_plugin_events_and_endpoint_page() {
+        let tmp = TempDir::new().unwrap();
+        write_index(tmp.path()).unwrap();
+        let text = std::fs::read_to_string(tmp.path().join("search-index.json")).unwrap();
+        let entries: Vec<serde_json::Value> = serde_json::from_str(&text).unwrap();
+        let urls: Vec<_> = entries
+            .iter()
+            .filter_map(|entry| entry.get("url").and_then(|url| url.as_str()))
+            .collect();
+
+        assert!(urls.contains(&"api/endpoints.html"));
+        for doc in EVENT_DOCS {
+            let expected = format!("plugins/events/{}.html", doc.name.replace('.', "-"));
+            assert!(
+                urls.contains(&expected.as_str()),
+                "search index missing {expected}"
+            );
+        }
     }
 }

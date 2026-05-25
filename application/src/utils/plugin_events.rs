@@ -44,6 +44,45 @@ pub struct PluginReloadPayload {
 }
 
 #[derive(Serialize)]
+pub struct PluginConfigMutatedPayload {
+    pub hook_count: usize,
+    pub input_len: usize,
+    pub output_len: usize,
+}
+
+#[derive(Serialize)]
+pub struct PluginRequestShortCircuitedPayload<'a> {
+    pub phase: &'a str,
+    pub method: &'a str,
+    pub path: &'a str,
+    pub status: u16,
+}
+
+#[derive(Serialize)]
+pub struct PluginJsonMutatedPayload<'a> {
+    pub method: &'a str,
+    pub path: &'a str,
+    pub input_len: usize,
+    pub output_len: usize,
+}
+
+#[derive(Serialize)]
+pub struct PluginRouteInvokedPayload<'a> {
+    pub plugin: &'a str,
+    pub method: &'a str,
+    pub path: &'a str,
+    pub status: u16,
+}
+
+#[derive(Serialize)]
+pub struct PluginRouteFailedPayload<'a> {
+    pub plugin: &'a str,
+    pub method: &'a str,
+    pub path: &'a str,
+    pub error: &'a str,
+}
+
+#[derive(Serialize)]
 pub struct ConfigAppliedPayload {
     pub path: String,
     pub requires_restart: bool,
@@ -510,8 +549,32 @@ mod tests {
                 database_servers: true,
             })
             .unwrap(),
+            serde_json::to_value(PluginConfigMutatedPayload {
+                hook_count: 1,
+                input_len: 10,
+                output_len: 12,
+            })
+            .unwrap(),
+            serde_json::to_value(PluginRequestShortCircuitedPayload {
+                phase: "request.intercept",
+                method: "GET",
+                path: "/api/system",
+                status: 403,
+            })
+            .unwrap(),
+            serde_json::to_value(PluginJsonMutatedPayload {
+                method: "GET",
+                path: "/api/system",
+                input_len: 10,
+                output_len: 20,
+            })
+            .unwrap(),
         ];
-        assert_eq!(payloads.len(), 3);
+        assert_eq!(payloads.len(), 6);
         assert_eq!(PluginEvent::ConfigUpgraded.name(), "config.upgraded");
+        assert_eq!(
+            PluginEvent::PluginRequestShortCircuited.name(),
+            "plugins.request_short_circuited"
+        );
     }
 }

@@ -8,13 +8,12 @@ extern "C" fn noop_hook(_ctx: *const EventContext) -> HookResult {
 }
 
 #[test]
-fn lifecycle_catalog_has_83_unique_events() {
-    assert_eq!(PluginEvent::all().len(), 83);
+fn lifecycle_catalog_has_unique_events() {
     let names = PluginEvent::all_names();
     let mut unique = names.clone();
     unique.sort_unstable();
     unique.dedup();
-    assert_eq!(unique.len(), 83);
+    assert_eq!(unique.len(), PluginEvent::all().len());
 }
 
 #[test]
@@ -29,6 +28,12 @@ fn new_infrastructure_events_are_documented() {
         "hosting.error_pages_ready",
         "proxy.traefik_provisioned",
         "hosting.images_pulled",
+        "plugins.config_mutated",
+        "plugins.request_short_circuited",
+        "plugins.json_response_mutated",
+        "plugins.json_actions_mutated",
+        "plugins.route_invoked",
+        "plugins.route_failed",
     ] {
         assert!(
             schema.lifecycle_events.iter().any(|e| e.name == name),
@@ -59,11 +64,14 @@ fn every_event_id_is_contiguous() {
         .map(|d| d.event.as_u32())
         .collect();
     ids.sort_unstable();
-    assert_eq!(ids, (1..=83).collect::<Vec<_>>());
+    assert_eq!(
+        ids,
+        (1..=PluginEvent::all().len() as u32).collect::<Vec<_>>()
+    );
 }
 
 #[test]
-fn plugins_can_hook_all_83_events() {
+fn plugins_can_hook_all_events() {
     let mut bus = EventBus::new();
     for doc in PluginEvent::all() {
         bus.register("wiring-test", doc.event.as_u32(), noop_hook);

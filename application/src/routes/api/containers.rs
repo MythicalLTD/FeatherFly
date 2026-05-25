@@ -14,9 +14,6 @@ pub fn router(state: &State) -> OpenApiRouter<State> {
         .routes(routes!(crate::controllers::containers::start))
         .routes(routes!(crate::controllers::containers::stop))
         .routes(routes!(crate::controllers::containers::remove))
-        .route(
-            "/{id}/exec/ws",
-            axum::routing::get(crate::controllers::containers::exec_ws),
-        )
+        .routes(routes!(crate::controllers::containers::exec_ws))
         .with_state(state.clone())
 }

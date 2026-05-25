@@ -94,10 +94,54 @@ fn all_payload_structs_serialize() {
             images: vec!["mysql:8".into(), "redis:7-alpine".into()],
         }
     );
+    assert_serializes!(
+        plugin_config_mutated,
+        PluginConfigMutatedPayload {
+            hook_count: 1,
+            input_len: 128,
+            output_len: 256,
+        }
+    );
+    assert_serializes!(
+        plugin_request_short_circuited,
+        PluginRequestShortCircuitedPayload {
+            phase: "request.intercept",
+            method: "GET",
+            path: "/api/system",
+            status: 401,
+        }
+    );
+    assert_serializes!(
+        plugin_json_mutated,
+        PluginJsonMutatedPayload {
+            method: "GET",
+            path: "/api/system",
+            input_len: 32,
+            output_len: 48,
+        }
+    );
+    assert_serializes!(
+        plugin_route_invoked,
+        PluginRouteInvokedPayload {
+            plugin: "hello",
+            method: "GET",
+            path: "/plugins/hello/ping",
+            status: 200,
+        }
+    );
+    assert_serializes!(
+        plugin_route_failed,
+        PluginRouteFailedPayload {
+            plugin: "hello",
+            method: "GET",
+            path: "/plugins/hello/ping",
+            error: "handler failed",
+        }
+    );
 }
 
 #[test]
-fn new_hosting_events_are_in_catalog() {
+fn new_infrastructure_and_plugin_events_are_in_catalog() {
     for name in [
         "config.upgraded",
         "hosting.reconciled",
@@ -107,6 +151,12 @@ fn new_hosting_events_are_in_catalog() {
         "hosting.error_pages_ready",
         "proxy.traefik_provisioned",
         "hosting.images_pulled",
+        "plugins.config_mutated",
+        "plugins.request_short_circuited",
+        "plugins.json_response_mutated",
+        "plugins.json_actions_mutated",
+        "plugins.route_invoked",
+        "plugins.route_failed",
     ] {
         assert!(
             PluginEvent::all_names().contains(&name),
