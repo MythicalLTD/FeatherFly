@@ -38,3 +38,36 @@ pub async fn pull_hosting_images(docker: &DockerManager, inner: &InnerConfig) {
 pub fn error_pages_image() -> &'static str {
     ERROR_PAGES_IMAGE
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+
+    #[test]
+    fn hosting_images_are_sorted_unique() {
+        let inner = Config::parse_preview(
+            br#"
+api:
+  port: 9090
+system:
+  root_directory: ./data
+  log_directory: ./logs
+  tmp_directory: ./tmp
+  pid_file: ./featherfly.pid
+"#,
+        )
+        .unwrap();
+        let images = hosting_images(&inner);
+        let mut sorted = images.clone();
+        sorted.sort();
+        sorted.dedup();
+        assert_eq!(images, sorted);
+        assert!(images.contains(&inner.hosting.mysql_image));
+    }
+
+    #[test]
+    fn error_pages_image_constant() {
+        assert_eq!(error_pages_image(), "nginx:alpine");
+    }
+}

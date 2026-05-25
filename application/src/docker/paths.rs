@@ -18,3 +18,23 @@ pub fn absolute_bind_path(path: impl AsRef<Path>) -> Result<String, anyhow::Erro
         .with_context(|| format!("failed to resolve absolute bind path: {}", path.display()))?;
     Ok(abs.to_string_lossy().into())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn creates_missing_directory_before_canonicalize() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("nested/pages");
+        let abs = absolute_bind_path(&path).unwrap();
+        assert!(Path::new(&abs).is_dir());
+    }
+
+    #[test]
+    fn existing_path_canonicalizes() {
+        let dir = tempfile::tempdir().unwrap();
+        let abs = absolute_bind_path(dir.path()).unwrap();
+        assert!(abs.starts_with('/'));
+    }
+}

@@ -1,6 +1,6 @@
 pub mod metadata;
 
-pub const FEATHERFLY_PLUGIN_API_VERSION: u32 = 5;
+pub const FEATHERFLY_PLUGIN_API_VERSION: u32 = 6;
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,6 +80,14 @@ pub enum PluginEvent {
     SiteStatsCollected = 73,
     DnsDnssecUpdated = 74,
     HostingLimitsUpdated = 75,
+    ConfigUpgraded = 76,
+    HostingReconciled = 77,
+    SharedStackSynced = 78,
+    SharedDatabaseServersReady = 79,
+    PhpMyAdminProvisioned = 80,
+    ErrorPagesReady = 81,
+    TraefikProvisioned = 82,
+    HostingImagesPulled = 83,
 }
 
 impl PluginEvent {
@@ -166,6 +174,14 @@ impl PluginEvent {
             Self::SiteStatsCollected => "site.stats_collected",
             Self::DnsDnssecUpdated => "dns.dnssec_updated",
             Self::HostingLimitsUpdated => "hosting.limits_updated",
+            Self::ConfigUpgraded => "config.upgraded",
+            Self::HostingReconciled => "hosting.reconciled",
+            Self::SharedStackSynced => "hosting.shared_stack_synced",
+            Self::SharedDatabaseServersReady => "hosting.shared_database_servers_ready",
+            Self::PhpMyAdminProvisioned => "hosting.phpmyadmin_provisioned",
+            Self::ErrorPagesReady => "hosting.error_pages_ready",
+            Self::TraefikProvisioned => "proxy.traefik_provisioned",
+            Self::HostingImagesPulled => "hosting.images_pulled",
         }
     }
 
@@ -716,13 +732,13 @@ mod tests {
 
     #[test]
     fn event_catalog_is_complete() {
-        assert_eq!(metadata::EVENT_DOCS.len(), 75);
+        assert_eq!(metadata::EVENT_DOCS.len(), 83);
         let mut ids: Vec<u32> = metadata::EVENT_DOCS
             .iter()
             .map(|d| d.event.as_u32())
             .collect();
         ids.sort_unstable();
-        assert_eq!(ids, (1..=75).collect::<Vec<_>>());
+        assert_eq!(ids, (1..=83).collect::<Vec<_>>());
 
         for doc in metadata::EVENT_DOCS {
             assert_eq!(doc.event.name(), doc.name);

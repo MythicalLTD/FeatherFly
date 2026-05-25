@@ -11,7 +11,9 @@ use crate::{
     databases::DatabaseEngine,
     docker::{DockerManager, connect_container_network},
     routes::State,
+    utils::plugin_events::{self, SharedDatabaseServersReadyPayload},
 };
+use featherfly_plugin_sdk::PluginEvent;
 
 pub const SHARED_MYSQL: &str = "featherfly-mysql";
 pub const SHARED_POSTGRES: &str = "featherfly-postgres";
@@ -70,15 +72,31 @@ pub async fn ensure_shared_database_servers(
     let redis = ensure_redis(docker, inner, &root).await?;
     let mongo = ensure_mongodb(docker, inner, &root).await?;
 
+    let mut site_networks_connected = 0usize;
     for site in sites {
         if let Some(network) = &site.network {
             for cid in [&mysql, &postgres, &redis, &mongo] {
-                connect_container_network(docker.client(), network, cid)
+                if connect_container_network(docker.client(), network, cid)
                     .await
-                    .ok();
+                    .is_ok()
+                {
+                    site_networks_connected += 1;
+                }
             }
         }
     }
+
+    plugin_events::emit_state_event(
+        state,
+        PluginEvent::SharedDatabaseServersReady,
+        &SharedDatabaseServersReadyPayload {
+            mysql: true,
+            postgres: true,
+            redis: true,
+            mongodb: true,
+            site_networks_connected,
+        },
+    );
 
     Ok(())
 }
@@ -504,4 +522,90 @@ async fn run_sh(
         .await
         .with_context(|| format!("exec failed in {container}"))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+
+    #[test]
+    fn shared_db_host_maps_all_engines() {
+        assert_eq!(shared_db_host(DatabaseEngine::Mysql), SHARED_MYSQL);
+        assert_eq!(shared_db_host(DatabaseEngine::Postgres), SHARED_POSTGRES);
+        assert_eq!(shared_db_host(DatabaseEngine::Redis), SHARED_REDIS);
+        assert_eq!(shared_db_host(DatabaseEngine::Mongodb), SHARED_MONGODB);
+    }
+
+    #[test]
+    fn shared_db_logical_name_uses_custom_or_id() {
+        assert_eq!(
+            shared_db_logical_name("site1", "db1", Some("appdb")),
+            "site1__appdb"
+        );
+        assert_eq!(shared_db_logical_name("site1", "db1", None), "site1__db1");
+    }
+
+    #[test]
+    fn shared_db_user_scopes_username_to_site() {
+        assert_eq!(shared_db_user("site1", Some("app"), "db1"), "site1__app");
+        assert_eq!(shared_db_user("site1", None, "db1"), "site1__db1");
+    }
+
+    #[test]
+    fn ensure_database_root_password_respects_config_value() {
+        let inner = Config::parse_preview(
+            br#"
+api:
+  port: 9090
+system:
+  root_directory: ./data
+  log_directory: ./logs
+  tmp_directory: ./tmp
+  data: ./data/volumes
+  pid_file: ./featherfly.pid
+hosting:
+  database_root_password: configured-root
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            ensure_database_root_password(&inner).unwrap(),
+            "configured-root"
+        );
+    }
+
+    #[test]
+    fn ensure_database_root_password_generates_and_reuses_secret_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let data = dir.path().join("volumes");
+        std::fs::create_dir_all(&data).unwrap();
+        let data = data.to_string_lossy();
+
+        let inner = Config::parse_preview(
+            format!(
+                r#"
+api:
+  port: 9090
+system:
+  root_directory: ./data
+  log_directory: ./logs
+  tmp_directory: ./tmp
+  data: {data}
+  pid_file: ./featherfly.pid
+hosting:
+  database_root_password: ""
+"#
+            )
+            .as_bytes(),
+        )
+        .unwrap();
+
+        let first = ensure_database_root_password(&inner).unwrap();
+        assert!(!first.is_empty());
+        let second = ensure_database_root_password(&inner).unwrap();
+        assert_eq!(first, second);
+        assert!(root_secret_path(&inner).exists());
+    }
 }

@@ -171,4 +171,19 @@ mod tests {
         assert!(html.contains("featherpanel.com"));
         assert!(html.contains("tailwindcss.com"));
     }
+
+    #[test]
+    fn all_default_error_codes_render() {
+        for spec in DEFAULT_PAGES {
+            let html = render_error_page(spec.code, spec.title, spec.message, "TestApp");
+            assert!(html.contains(spec.title));
+            assert!(html.contains(&spec.code.to_string()));
+        }
+    }
+
+    #[test]
+    fn traefik_middleware_file_name_is_stable() {
+        assert_eq!(ERRORS_DYNAMIC_FILE, "featherfly-errors.yml");
+        assert_eq!(ERRORS_CONTAINER, "featherfly-errors");
+    }
 }

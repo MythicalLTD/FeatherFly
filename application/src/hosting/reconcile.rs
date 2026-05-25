@@ -2,7 +2,9 @@ use crate::{
     ftp::{FtpService, FtpSyncRequest},
     mail::{MailService, MailSyncRequest},
     routes::State,
+    utils::plugin_events::{self, HostingImagesPulledPayload, HostingReconciledPayload},
 };
+use featherfly_plugin_sdk::PluginEvent;
 
 #[derive(Debug, Default)]
 pub struct ReconcileSummary {
@@ -31,7 +33,16 @@ pub async fn reconcile_on_startup(state: &State) -> ReconcileSummary {
     };
 
     if inner.hosting.auto_update_images || inner.hosting.auto_pull_images {
+        let images = crate::docker::hosting_images(&inner);
         crate::docker::pull_hosting_images(docker, &inner).await;
+        plugin_events::emit_state_event(
+            state,
+            PluginEvent::HostingImagesPulled,
+            &HostingImagesPulledPayload {
+                image_count: images.len(),
+                images,
+            },
+        );
     }
 
     let mut summary = ReconcileSummary::default();
@@ -90,5 +101,30 @@ pub async fn reconcile_on_startup(state: &State) -> ReconcileSummary {
         "hosting reconcile complete"
     );
 
+    plugin_events::emit_state_event(
+        state,
+        PluginEvent::HostingReconciled,
+        &HostingReconciledPayload {
+            sites_total: summary.sites_total,
+            sites_started: summary.sites_started,
+            mail_synced: summary.mail_synced,
+            ftp_synced: summary.ftp_synced,
+            shared_stack: summary.shared_stack,
+        },
+    );
+
     summary
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_summary_is_empty() {
+        let s = ReconcileSummary::default();
+        assert_eq!(s.sites_total, 0);
+        assert_eq!(s.sites_started, 0);
+        assert!(!s.shared_stack);
+    }
 }

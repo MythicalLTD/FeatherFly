@@ -185,7 +185,7 @@ fn hub_body() -> String {
             (
                 "plugins-reference.txt",
                 "Plugin reference (TXT)",
-                "Complete plain-text hook catalog — all 75 events.",
+                "Complete plain-text hook catalog — all 83 events.",
             ),
         ]),
         test_card = html::card_grid(&[(

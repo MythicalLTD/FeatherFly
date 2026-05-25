@@ -865,6 +865,12 @@ pub struct Config {
 
 pub struct ConfigGuard(#[allow(dead_code)] crate::utils::logging::LogGuards);
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct ConfigOpenMeta {
+    pub identity_generated: bool,
+    pub config_upgraded: bool,
+}
+
 impl std::ops::Deref for Config {
     type Target = ArcSwap<InnerConfig>;
 
@@ -905,7 +911,7 @@ impl Config {
         path: &str,
         debug: bool,
         is_subcommand: bool,
-    ) -> Result<(Arc<Self>, ConfigGuard, bool), anyhow::Error> {
+    ) -> Result<(Arc<Self>, ConfigGuard, ConfigOpenMeta), anyhow::Error> {
         let raw = std::fs::read(path).context(format!("failed to read config file {path}"))?;
         let inner = Self::parse_preview(&raw)?;
         Self::open_from_inner(inner, path, debug, is_subcommand)
@@ -963,7 +969,7 @@ impl Config {
         path: &str,
         debug: bool,
         is_subcommand: bool,
-    ) -> Result<(Arc<Self>, ConfigGuard, bool), anyhow::Error> {
+    ) -> Result<(Arc<Self>, ConfigGuard, ConfigOpenMeta), anyhow::Error> {
         inner = Self::apply_debug_overrides(inner, debug);
 
         let identity_changed = crate::utils::identity::ensure_node_identity(
@@ -1014,7 +1020,14 @@ impl Config {
             }
         }
 
-        Ok((config, log_guards, identity_changed))
+        Ok((
+            config,
+            log_guards,
+            ConfigOpenMeta {
+                identity_generated: identity_changed,
+                config_upgraded,
+            },
+        ))
     }
 
     /// True when the on-disk YAML is missing keys or needs a legacy migration rewrite.
@@ -1281,6 +1294,38 @@ fn restart_reasons(old: &InnerConfig, new: &InnerConfig) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
+
+    fn isolated_system_yaml(base: &Path) -> String {
+        let base = base.to_string_lossy();
+        format!(
+            r"
+system:
+  root_directory: {base}/data
+  log_directory: {base}/logs
+  tmp_directory: {base}/tmp
+  plugins_directory: {base}/plugins
+  data: {base}/volumes
+  archive_directory: {base}/archives
+  backup_directory: {base}/backups
+  pid_file: {base}/featherfly.pid
+"
+        )
+    }
+
+    fn minimal_open_yaml(base: &Path, hosting_extra: &str) -> String {
+        let templates = base.to_string_lossy();
+        format!(
+            r"debug: true
+api:
+  port: 9090
+{system}
+hosting:
+  templates_directory: {templates}/templates
+{hosting_extra}",
+            system = isolated_system_yaml(base)
+        )
+    }
 
     #[test]
     fn resolve_config_path_debug_uses_local_config() {
@@ -1405,10 +1450,73 @@ system:
     fn auto_generates_node_identity_when_missing() {
         let dir = tempfile::tempdir().unwrap();
         let config_path = dir.path().join("config.yml");
+        std::fs::write(&config_path, minimal_open_yaml(dir.path(), "")).unwrap();
+
+        let (config, _guard, meta) =
+            Config::open(config_path.to_str().unwrap(), true, false).unwrap();
+
+        assert!(meta.identity_generated);
+        assert_eq!(config.load().uuid.len(), 36);
+        assert_eq!(config.load().token_id.len(), 16);
+        assert_eq!(config.load().token.len(), 64);
+
+        let saved = std::fs::read_to_string(&config_path).unwrap();
+        assert!(saved.contains("uuid:"));
+        assert!(saved.contains("token_id:"));
+        assert!(saved.contains("mysql_image:"));
+    }
+
+    #[test]
+    fn open_persists_missing_defaults_without_identity_change() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("config.yml");
         std::fs::write(
             &config_path,
-            r#"
+            format!(
+                "{}\nuuid: 11111111-1111-1111-1111-111111111111\ntoken_id: testtokenid12345\ntoken: test-token",
+                minimal_open_yaml(
+                    dir.path(),
+                    r"  shared_services: true
+",
+                )
+            ),
+        )
+        .unwrap();
+
+        let (config, _guard, meta) =
+            Config::open(config_path.to_str().unwrap(), true, false).unwrap();
+
+        assert!(!meta.identity_generated);
+        assert!(meta.config_upgraded);
+        assert_eq!(config.load().hosting.mongodb_image, "mongo:7");
+
+        let saved = std::fs::read_to_string(&config_path).unwrap();
+        assert!(saved.contains("mongodb_image:"));
+        assert!(saved.contains("database_root_password:"));
+    }
+
+    #[test]
+    fn legacy_migration_triggers_config_persist() {
+        let raw = br#"
 debug: true
+node:
+  id: legacy-node-id
+api:
+  port: 9090
+system:
+  root_directory: ./data
+  log_directory: ./logs
+  tmp_directory: ./tmp
+  pid_file: ./featherfly.pid
+"#;
+        let inner = Config::parse_preview(raw).unwrap();
+        assert!(Config::config_needs_persist(raw, &inner).unwrap());
+    }
+
+    #[test]
+    fn hosting_defaults_include_shared_database_settings() {
+        let inner = Config::parse_preview(
+            br#"
 api:
   port: 9090
 system:
@@ -1420,17 +1528,37 @@ system:
         )
         .unwrap();
 
-        let (config, _guard, identity_generated) =
-            Config::open(config_path.to_str().unwrap(), true, false).unwrap();
+        assert_eq!(inner.hosting.mysql_image, "mysql:8");
+        assert_eq!(inner.hosting.postgres_image, "postgres:16-alpine");
+        assert_eq!(inner.hosting.redis_image, "redis:7-alpine");
+        assert_eq!(inner.hosting.mongodb_image, "mongo:7");
+        assert!(inner.hosting.shared_services);
+        assert_eq!(inner.hosting.ports.mysql, 3306);
+        assert_eq!(inner.hosting.ports.postgres, 5432);
+        assert_eq!(inner.hosting.ports.redis, 6379);
+        assert_eq!(inner.hosting.ports.mongodb, 27017);
+    }
 
-        assert!(identity_generated);
-        assert_eq!(config.load().uuid.len(), 36);
-        assert_eq!(config.load().token_id.len(), 16);
-        assert_eq!(config.load().token.len(), 64);
-
-        let saved = std::fs::read_to_string(&config_path).unwrap();
-        assert!(saved.contains("uuid:"));
-        assert!(saved.contains("token_id:"));
+    #[test]
+    fn value_contains_all_keys_detects_nested_missing_fields() {
+        let disk: serde_norway::Value = serde_norway::from_str(
+            r"
+hosting:
+  ports:
+    http: 80
+",
+        )
+        .unwrap();
+        let complete: serde_norway::Value = serde_norway::from_str(
+            r"
+hosting:
+  ports:
+    http: 80
+    mysql: 3306
+",
+        )
+        .unwrap();
+        assert!(!value_contains_all_keys(&disk, &complete));
     }
 
     #[test]
@@ -1439,26 +1567,17 @@ system:
         let config_path = dir.path().join("config.yml");
         std::fs::write(
             &config_path,
-            r#"
-debug: true
-uuid: 11111111-1111-1111-1111-111111111111
-token_id: testtokenid12345
-token: test-token
-api:
-  host: 127.0.0.1
-  port: 9090
-system:
-  root_directory: ./data
-  log_directory: ./logs
-  tmp_directory: ./tmp
-  username: featherfly
-  pid_file: ./featherfly.pid
-hosting:
-  shared_services: true
+            format!(
+                "{}\nuuid: 11111111-1111-1111-1111-111111111111\ntoken_id: testtokenid12345\ntoken: test-token",
+                minimal_open_yaml(
+                    dir.path(),
+                    r"  shared_services: true
   ports:
     http: 80
     https: 443
-"#,
+",
+                )
+            ),
         )
         .unwrap();
 

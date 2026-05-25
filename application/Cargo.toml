@@ -20,7 +20,7 @@ path = "src/main.rs"
 
 [[bin]]
 name = "featherd"
-path = "src/main.rs"
+path = "src/bin/featherd.rs"
 
 [[bin]]
 name = "generate-docs"

@@ -374,6 +374,65 @@ pub struct HostingLimitsUpdatedPayload<'a> {
     pub site_id: &'a str,
 }
 
+#[derive(Serialize)]
+pub struct ConfigUpgradedPayload<'a> {
+    pub path: &'a str,
+}
+
+#[derive(Serialize)]
+pub struct HostingReconciledPayload {
+    pub sites_total: usize,
+    pub sites_started: usize,
+    pub mail_synced: usize,
+    pub ftp_synced: usize,
+    pub shared_stack: bool,
+}
+
+#[derive(Serialize)]
+pub struct SharedStackSyncedPayload {
+    pub mail: bool,
+    pub roundcube: bool,
+    pub sftp: bool,
+    pub ftp: bool,
+    pub phpmyadmin: bool,
+    pub database_servers: bool,
+}
+
+#[derive(Serialize)]
+pub struct SharedDatabaseServersReadyPayload {
+    pub mysql: bool,
+    pub postgres: bool,
+    pub redis: bool,
+    pub mongodb: bool,
+    pub site_networks_connected: usize,
+}
+
+#[derive(Serialize)]
+pub struct PhpMyAdminProvisionedPayload<'a> {
+    pub container_id: &'a str,
+    pub site_count: usize,
+}
+
+#[derive(Serialize)]
+pub struct ErrorPagesReadyPayload<'a> {
+    pub pages_directory: &'a str,
+    pub container_id: &'a str,
+}
+
+#[derive(Serialize)]
+pub struct TraefikProvisionedPayload<'a> {
+    pub result: &'a str,
+    pub image: &'a str,
+    pub network: &'a str,
+    pub tls_enabled: bool,
+}
+
+#[derive(Serialize)]
+pub struct HostingImagesPulledPayload {
+    pub image_count: usize,
+    pub images: Vec<String>,
+}
+
 pub fn emit_json(registry: &PluginRegistry, event: PluginEvent, payload: &impl Serialize) {
     if !registry.has_event_hooks(event) {
         return;
@@ -420,4 +479,39 @@ pub fn emit_container_failure(
 
 pub fn ip_string(ip: std::net::IpAddr) -> String {
     ip.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use featherfly_plugin_sdk::PluginEvent;
+
+    #[test]
+    fn payload_types_for_new_events_serialize() {
+        let payloads: Vec<serde_json::Value> = vec![
+            serde_json::to_value(ConfigUpgradedPayload {
+                path: "/tmp/config.yml",
+            })
+            .unwrap(),
+            serde_json::to_value(HostingReconciledPayload {
+                sites_total: 1,
+                sites_started: 1,
+                mail_synced: 0,
+                ftp_synced: 0,
+                shared_stack: true,
+            })
+            .unwrap(),
+            serde_json::to_value(SharedStackSyncedPayload {
+                mail: true,
+                roundcube: false,
+                sftp: false,
+                ftp: false,
+                phpmyadmin: true,
+                database_servers: true,
+            })
+            .unwrap(),
+        ];
+        assert_eq!(payloads.len(), 3);
+        assert_eq!(PluginEvent::ConfigUpgraded.name(), "config.upgraded");
+    }
 }

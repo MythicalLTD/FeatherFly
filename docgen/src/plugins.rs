@@ -566,7 +566,7 @@ fn events_index_page() -> String {
 <table><thead><tr><th>Event</th><th>Summary</th><th>When</th><th>Cancel</th></tr></thead><tbody>{rows}</tbody></table>",
         header = html::page_header(
             "Lifecycle events",
-            "Automatic and lifecycle hooks — 75 events, JSON payloads for HTTP, Docker, hosting, and system actions.",
+            "Automatic and lifecycle hooks — 83 events, JSON payloads for HTTP, Docker, hosting, and system actions.",
         ),
         card_grid = card_html,
         rows = summary_rows,

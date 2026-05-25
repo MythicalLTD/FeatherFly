@@ -77,7 +77,7 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
         }
     };
 
-    let (config, _guard, identity_generated) =
+    let (config, _guard, open_meta) =
         match crate::config::Config::open_from_inner(inner, config_path, debug, false) {
             Ok(result) => result,
             Err(err) => {
@@ -87,7 +87,7 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
         };
     tracing::debug!(path = config_path, "configuration loaded");
 
-    if identity_generated {
+    if open_meta.identity_generated {
         let inner = config.load();
         crate::utils::plugin_events::emit_json(
             &plugin_registry,
@@ -96,6 +96,14 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
                 uuid: &inner.uuid,
                 token_id: &inner.token_id,
             },
+        );
+    }
+
+    if open_meta.config_upgraded {
+        crate::utils::plugin_events::emit_json(
+            &plugin_registry,
+            featherfly_plugin_sdk::PluginEvent::ConfigUpgraded,
+            &crate::utils::plugin_events::ConfigUpgradedPayload { path: config_path },
         );
     }
 
@@ -138,6 +146,19 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
                     docker_installed = result.summary.docker_installed,
                     "docker bootstrap complete"
                 );
+                if result.summary.traefik != crate::proxy::TraefikEnsureResult::Skipped {
+                    let inner = config.load();
+                    crate::utils::plugin_events::emit_json(
+                        &plugin_registry,
+                        featherfly_plugin_sdk::PluginEvent::TraefikProvisioned,
+                        &crate::utils::plugin_events::TraefikProvisionedPayload {
+                            result: crate::proxy::traefik_result_label(result.summary.traefik),
+                            image: &inner.proxy.traefik_image,
+                            network: &inner.proxy.network,
+                            tls_enabled: inner.proxy.tls_enabled,
+                        },
+                    );
+                }
                 Some(result.manager)
             }
             Ok(None) => {

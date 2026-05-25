@@ -217,3 +217,62 @@ pub fn list_published_ports(ports: &HostingPortsConfig) -> Vec<PublishedPort> {
         },
     ]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::HostingPortsConfig;
+
+    #[test]
+    fn database_port_bindings_publish_when_enabled() {
+        let ports = HostingPortsConfig {
+            mysql: 13306,
+            postgres: 15432,
+            redis: 16379,
+            mongodb: 27018,
+            ..HostingPortsConfig::default()
+        };
+
+        let mysql = mysql_port_bindings(&ports);
+        assert_eq!(
+            mysql
+                .get("3306/tcp")
+                .and_then(|b| b.as_ref())
+                .and_then(|b| b.first()),
+            Some(&bollard::models::PortBinding {
+                host_ip: Some("0.0.0.0".into()),
+                host_port: Some("13306".into()),
+            })
+        );
+
+        let postgres = postgres_port_bindings(&ports);
+        assert!(postgres.contains_key("5432/tcp"));
+
+        let redis = redis_port_bindings(&ports);
+        assert!(redis.contains_key("6379/tcp"));
+
+        let mongo = mongodb_port_bindings(&ports);
+        assert!(mongo.contains_key("27017/tcp"));
+    }
+
+    #[test]
+    fn database_port_bindings_hidden_when_publish_disabled() {
+        let ports = HostingPortsConfig {
+            publish_service_ports: false,
+            ..HostingPortsConfig::default()
+        };
+        assert!(mysql_port_bindings(&ports).is_empty());
+        assert!(postgres_port_bindings(&ports).is_empty());
+    }
+
+    #[test]
+    fn list_published_ports_includes_database_services() {
+        let ports = HostingPortsConfig::default();
+        let published = list_published_ports(&ports);
+        let services: Vec<_> = published.iter().map(|p| p.service.as_str()).collect();
+        assert!(services.contains(&"mysql"));
+        assert!(services.contains(&"postgres"));
+        assert!(services.contains(&"redis"));
+        assert!(services.contains(&"mongodb"));
+    }
+}

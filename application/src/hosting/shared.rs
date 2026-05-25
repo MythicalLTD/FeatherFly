@@ -4,6 +4,8 @@ use anyhow::Context;
 use bollard::container::{Config, CreateContainerOptions};
 use bollard::models::{Mount, MountTypeEnum};
 
+use featherfly_plugin_sdk::PluginEvent;
+
 use crate::{
     cache::{FtpAccountRecord, MailAccountRecord, SiteRecord},
     config::InnerConfig,
@@ -13,6 +15,9 @@ use crate::{
     },
     proxy::{ServiceRouteSpec, build_service_labels},
     routes::State,
+    utils::plugin_events::{
+        self, ErrorPagesReadyPayload, PhpMyAdminProvisionedPayload, SharedStackSyncedPayload,
+    },
 };
 
 pub const SHARED_MAIL: &str = "featherfly-mailserver";
@@ -37,25 +42,47 @@ pub async fn sync_shared_stack(state: &State) -> Result<(), anyhow::Error> {
     let mail_accounts = cache.list_all_mail_accounts().await?;
     let ftp_accounts = cache.list_all_ftp_accounts().await?;
 
-    ensure_error_page_files(&inner)?;
-    write_traefik_error_middleware(&inner)?;
-    ensure_errors_nginx(state, &inner).await?;
+    let errors_cid = ensure_errors_nginx(state, &inner).await?;
+    plugin_events::emit_state_event(
+        state,
+        PluginEvent::ErrorPagesReady,
+        &ErrorPagesReadyPayload {
+            pages_directory: &inner.hosting.error_pages_directory,
+            container_id: &errors_cid,
+        },
+    );
 
     crate::hosting::shared_db::ensure_shared_database_servers(state, &inner, &sites).await?;
-    ensure_shared_phpmyadmin(state, &inner, &sites).await?;
+    let pma_cid = ensure_shared_phpmyadmin(state, &inner, &sites).await?;
+    plugin_events::emit_state_event(
+        state,
+        PluginEvent::PhpMyAdminProvisioned,
+        &PhpMyAdminProvisionedPayload {
+            container_id: &pma_cid,
+            site_count: sites.len(),
+        },
+    );
+
+    let mut mail_synced = false;
+    let mut roundcube_synced = false;
+    let mut sftp_synced = false;
+    let mut ftp_synced = false;
 
     if !mail_accounts.is_empty() {
         let mail_cid = ensure_shared_mailserver(state, &inner).await?;
+        mail_synced = true;
         for account in &mail_accounts {
             register_mailbox(state, &mail_cid, &account.address, &account.password)
                 .await
                 .ok();
         }
         ensure_shared_roundcube(state, &inner, &sites, &mail_accounts).await?;
+        roundcube_synced = true;
     }
 
     if ftp_accounts.iter().any(|a| a.protocol != "ftp") {
         ensure_shared_sftp(state, &inner, &sites, &ftp_accounts).await?;
+        sftp_synced = true;
     }
 
     if ftp_accounts
@@ -63,7 +90,21 @@ pub async fn sync_shared_stack(state: &State) -> Result<(), anyhow::Error> {
         .any(|a| a.protocol == "ftp" || a.protocol == "both")
     {
         ensure_shared_ftp(state, &inner, &sites, &ftp_accounts).await?;
+        ftp_synced = true;
     }
+
+    plugin_events::emit_state_event(
+        state,
+        PluginEvent::SharedStackSynced,
+        &SharedStackSyncedPayload {
+            mail: mail_synced,
+            roundcube: roundcube_synced,
+            sftp: sftp_synced,
+            ftp: ftp_synced,
+            phpmyadmin: true,
+            database_servers: true,
+        },
+    );
 
     Ok(())
 }
@@ -532,4 +573,14 @@ pub fn shared_sftp_container_id() -> String {
 
 pub fn shared_ftp_container_id() -> String {
     SHARED_FTP.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shared_username_format() {
+        assert_eq!(shared_username("site42", "admin"), "site42__admin");
+    }
 }

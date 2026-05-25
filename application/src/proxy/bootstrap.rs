@@ -31,6 +31,15 @@ pub struct TraefikStatus {
     pub cert_resolver: String,
 }
 
+pub fn traefik_result_label(result: TraefikEnsureResult) -> &'static str {
+    match result {
+        TraefikEnsureResult::Created => "created",
+        TraefikEnsureResult::Restarted => "restarted",
+        TraefikEnsureResult::AlreadyRunning => "already_running",
+        TraefikEnsureResult::Skipped => "skipped",
+    }
+}
+
 pub async fn ensure_traefik(
     docker: &DockerManager,
     inner: &InnerConfig,
@@ -287,4 +296,21 @@ fn build_traefik_command(inner: &InnerConfig) -> Vec<String> {
     }
 
     args
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn traefik_result_label_maps_variants() {
+        assert_eq!(
+            traefik_result_label(TraefikEnsureResult::Created),
+            "created"
+        );
+        assert_eq!(
+            traefik_result_label(TraefikEnsureResult::Skipped),
+            "skipped"
+        );
+    }
 }

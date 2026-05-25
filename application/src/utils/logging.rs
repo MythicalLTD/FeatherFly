@@ -143,7 +143,7 @@ fn init_subscriber(
     let format = &inner.logging.format;
     let use_file_context = format.include_file_line || inner.debug;
 
-    tracing_subscriber::fmt()
+    if tracing_subscriber::fmt()
         .with_timer(tracing_subscriber::fmt::time::ChronoLocal::new(
             format.timestamp.clone(),
         ))
@@ -154,7 +154,15 @@ fn init_subscriber(
         .with_line_number(use_file_context)
         .with_max_level(level)
         .try_init()
-        .map_err(|err| anyhow::anyhow!("failed to initialize tracing subscriber: {err}"))
+        .is_err()
+        && !tracing::dispatcher::has_been_set()
+    {
+        return Err(anyhow::anyhow!(
+            "failed to initialize tracing subscriber: global default trace dispatcher could not be set"
+        ));
+    }
+
+    Ok(())
 }
 
 pub fn prune_archives(inner: &InnerConfig) -> anyhow::Result<usize> {

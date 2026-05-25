@@ -349,3 +349,72 @@ fn record_to_summary(record: &DatabaseRecord) -> DatabaseSummary {
         container_id: record.container_id.clone(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn engine_default_ports() {
+        assert_eq!(DatabaseEngine::Mysql.default_port(), 3306);
+        assert_eq!(DatabaseEngine::Postgres.default_port(), 5432);
+        assert_eq!(DatabaseEngine::Redis.default_port(), 6379);
+        assert_eq!(DatabaseEngine::Mongodb.default_port(), 27017);
+    }
+
+    #[test]
+    fn build_db_env_mysql_sets_database_and_user() {
+        let req = CreateDatabaseRequest {
+            id: "db1".into(),
+            engine: DatabaseEngine::Mysql,
+            username: Some("app".into()),
+            password: "secret".into(),
+            database: Some("mydb".into()),
+            memory_mb: None,
+        };
+        let (env, db_name) = build_db_env(DatabaseEngine::Mysql, &req, "site1");
+        assert!(env.iter().any(|e| e.contains("MYSQL_DATABASE=mydb")));
+        assert!(env.iter().any(|e| e.contains("MYSQL_USER=app")));
+        assert_eq!(db_name.as_deref(), Some("mydb"));
+    }
+
+    #[test]
+    fn build_db_env_redis_has_no_database_name() {
+        let req = CreateDatabaseRequest {
+            id: "r1".into(),
+            engine: DatabaseEngine::Redis,
+            username: None,
+            password: "secret".into(),
+            database: None,
+            memory_mb: None,
+        };
+        let (env, db_name) = build_db_env(DatabaseEngine::Redis, &req, "site1");
+        assert!(env.iter().any(|e| e.starts_with("REDIS_PASSWORD=")));
+        assert!(db_name.is_none());
+    }
+
+    #[test]
+    fn data_mount_paths_match_engines() {
+        assert_eq!(data_mount(DatabaseEngine::Mysql), "/var/lib/mysql");
+        assert_eq!(data_mount(DatabaseEngine::Mongodb), "/data/db");
+    }
+
+    #[test]
+    fn record_to_summary_maps_fields() {
+        let record = DatabaseRecord {
+            id: "db1".into(),
+            site_id: "s1".into(),
+            engine: "mysql".into(),
+            container_id: Some("cid".into()),
+            volume: Some("vol".into()),
+            username: Some("u".into()),
+            database_name: Some("d".into()),
+            host: "featherfly-mysql".into(),
+            port: 3306,
+            created_at: 0,
+        };
+        let summary = record_to_summary(&record);
+        assert_eq!(summary.host, "featherfly-mysql");
+        assert_eq!(summary.database.as_deref(), Some("d"));
+    }
+}
