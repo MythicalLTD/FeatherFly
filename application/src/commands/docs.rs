@@ -32,8 +32,7 @@ impl crate::commands::CliCommand<DocsCommandArgs> for DocsCommand {
                     .map_err(|err| anyhow::anyhow!("{err}"))?;
 
                 let DocsArgs::Generate(generate_args) = args.action;
-                let openapi = crate::api_spec::build_openapi("FeatherFly");
-                featherfly_docgen::generate_all(&generate_args.output, &openapi)
+                featherfly_docgen::generate_minimal(&generate_args.output)
                     .map_err(anyhow::Error::from)?;
                 println!("generated docs at {}", generate_args.output.display());
                 Ok(0)

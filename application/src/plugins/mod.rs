@@ -14,13 +14,12 @@ use libloading::Library;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use utoipa::ToSchema;
 
 pub use schema::{PluginHookSchema, build_hook_schema};
 
 pub const PLUGIN_ENTRY_SYMBOL: &[u8] = b"featherfly_plugin_entry";
 
-#[derive(Debug, Serialize, ToSchema, Clone)]
+#[derive(Debug, Serialize, Clone)]
 pub struct PluginSummary {
     pub name: String,
     pub version: String,
@@ -29,7 +28,7 @@ pub struct PluginSummary {
     pub hooks: usize,
 }
 
-#[derive(Debug, Serialize, ToSchema, Clone)]
+#[derive(Debug, Serialize, Clone)]
 pub struct PluginLoadError {
     pub path: String,
     pub error: String,

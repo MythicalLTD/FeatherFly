@@ -8,7 +8,6 @@ mod diagnostics;
 mod docs;
 mod install;
 mod plugin;
-mod update;
 mod version;
 
 pub type ExecutorFunc = dyn Fn(
@@ -46,7 +45,7 @@ impl CliCommandGroupBuilder {
                 )
                 .arg(
                     Arg::new("debug")
-                        .help("pass in order to run featherfly in debug mode")
+                        .help("run featherfly in debug mode")
                         .num_args(0)
                         .short('d')
                         .long("debug")
@@ -73,26 +72,11 @@ impl CliCommandGroupBuilder {
         command: String,
         arg_matches: ArgMatches,
     ) -> Option<(&ExecutorFunc, ArgMatches)> {
-        let mut current_map = &self.map;
-        let mut current_matches = arg_matches;
-        let mut current_command = command;
+        let entry = self.map.get(command.as_str())?;
 
-        loop {
-            let entry = current_map.get(current_command.as_str())?;
-
-            match entry {
-                CommandMapEntry::Command(executor) => {
-                    return Some((executor, current_matches));
-                }
-                CommandMapEntry::Group(submap) => {
-                    let (subcommand_name, subcommand_matches) =
-                        current_matches.remove_subcommand()?;
-
-                    current_map = submap;
-                    current_matches = subcommand_matches;
-                    current_command = subcommand_name;
-                }
-            }
+        match entry {
+            CommandMapEntry::Command(executor) => Some((executor, arg_matches)),
+            CommandMapEntry::Group(_) => None,
         }
     }
 
@@ -131,7 +115,7 @@ pub fn commands(cli: CliCommandGroupBuilder) -> CliCommandGroupBuilder {
     )
     .add_command(
         "configure",
-        "Configure panel URL and authentication token (Wings-compatible).",
+        "Configure CloudPanel URL and authentication token.",
         configure::ConfigureCommand,
     )
     .add_command(
@@ -140,18 +124,13 @@ pub fn commands(cli: CliCommandGroupBuilder) -> CliCommandGroupBuilder {
         diagnostics::DiagnosticsCommand,
     )
     .add_command(
-        "update",
-        "Check GitHub for updates or install a newer FeatherFly build.",
-        update::UpdateCommand,
+        "docs",
+        "Generate static plugin SDK documentation.",
+        docs::DocsCommand,
     )
     .add_command(
         "plugin",
         "Build, install, and ship FeatherFly plugins.",
         plugin::PluginCommand,
-    )
-    .add_command(
-        "docs",
-        "Generate static documentation from OpenAPI and plugin SDK metadata.",
-        docs::DocsCommand,
     )
 }

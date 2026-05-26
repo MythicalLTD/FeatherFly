@@ -15,7 +15,7 @@ pub fn write_index(output: &Path) -> std::io::Result<()> {
         entry(
             "Home",
             "index.html",
-            "FeatherFly documentation hub plugins API web hosting daemon",
+            "FeatherFly documentation hub plugin SDK bare daemon",
         ),
         entry(
             "Plugin guide",
@@ -117,61 +117,6 @@ pub fn write_index(output: &Path) -> std::io::Result<()> {
             "plugins/example.html",
             "complete plugin source declare_plugin v4 all hooks",
         ),
-        entry(
-            "HTTP API",
-            "api/index.html",
-            "rest routes authentication bearer token featherpanel",
-        ),
-        entry(
-            "All API endpoints",
-            "api/endpoints.html",
-            "complete generated openapi method path operation endpoint index",
-        ),
-        entry(
-            "Health",
-            "api/health.html",
-            "liveness probe unauthenticated uptime",
-        ),
-        entry(
-            "System API",
-            "api/system.html",
-            "host architecture cpu kernel version actions",
-        ),
-        entry(
-            "System overview",
-            "api/system-overview.html",
-            "memory cpu metrics dashboard",
-        ),
-        entry(
-            "System plugins",
-            "api/system-plugins.html",
-            "loaded plugins hooks json targets request phases routes reload restart",
-        ),
-        entry(
-            "Remote config",
-            "api/system-config.html",
-            "read edit config yaml remote panel restart_if_required",
-        ),
-        entry(
-            "Remote restart",
-            "api/system-restart.html",
-            "daemon restart schedule delay remote panel",
-        ),
-        entry(
-            "System update",
-            "api/system-update.html",
-            "github release check apply download sha256 upgrade channel",
-        ),
-        entry(
-            "System upgrade",
-            "api/system-upgrade.html",
-            "download binary sha256 restart",
-        ),
-        entry(
-            "Unit tests",
-            "tests/index.html",
-            "cargo test ci inventory passed failed",
-        ),
     ];
 
     for doc in EVENT_DOCS {
@@ -249,7 +194,7 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
-    fn search_index_includes_all_plugin_events_and_endpoint_page() {
+    fn search_index_includes_all_plugin_events() {
         let tmp = TempDir::new().unwrap();
         write_index(tmp.path()).unwrap();
         let text = std::fs::read_to_string(tmp.path().join("search-index.json")).unwrap();
@@ -259,7 +204,6 @@ mod tests {
             .filter_map(|entry| entry.get("url").and_then(|url| url.as_str()))
             .collect();
 
-        assert!(urls.contains(&"api/endpoints.html"));
         for doc in EVENT_DOCS {
             let expected = format!("plugins/events/{}.html", doc.name.replace('.', "-"));
             assert!(

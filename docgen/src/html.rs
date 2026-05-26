@@ -506,21 +506,6 @@ fn sidebar(ctx: PageContext) -> String {
         ));
     }
 
-    out.push_str(r#"<div class="sidebar-group">HTTP API</div>"#);
-    for item in API_TOP {
-        out.push_str(&nav_link(
-            from_dir, ctx.active, item.id, item.label, item.path, false,
-        ));
-    }
-    for item in API_EXTRA {
-        out.push_str(&nav_link(
-            from_dir, ctx.active, item.id, item.label, item.path, false,
-        ));
-    }
-    for group in API_GROUPS {
-        out.push_str(&nav_group(from_dir, ctx.active, group));
-    }
-
     out.push_str(r#"<div class="sidebar-group">Reference</div>"#);
     for item in REFERENCE_LINKS {
         out.push_str(&nav_link(
@@ -699,52 +684,10 @@ const PLUGIN_BOTTOM: &[NavItem] = &[
     },
 ];
 
-const API_TOP: &[NavItem] = &[NavItem {
-    id: "api-overview",
-    label: "HTTP API",
-    path: "api/index.html",
-}];
-
-const API_EXTRA: &[NavItem] = &[NavItem {
-    id: "api-health",
-    label: "Health",
-    path: "api/health.html",
-}];
-
-const API_GROUPS: &[NavGroup] = &[NavGroup {
-    overview: Some(NavItem {
-        id: "api-system",
-        label: "System",
-        path: "api/system.html",
-    }),
-    children: &[
-        NavItem {
-            id: "api-system-overview",
-            label: "Overview metrics",
-            path: "api/system-overview.html",
-        },
-        NavItem {
-            id: "api-system-plugins",
-            label: "Plugins",
-            path: "api/system-plugins.html",
-        },
-        NavItem {
-            id: "api-system-update",
-            label: "Updates",
-            path: "api/system-update.html",
-        },
-        NavItem {
-            id: "api-system-upgrade",
-            label: "Upgrade",
-            path: "api/system-upgrade.html",
-        },
-    ],
-}];
-
 const REFERENCE_LINKS: &[NavItem] = &[NavItem {
-    id: "tests",
-    label: "Unit tests",
-    path: "tests/index.html",
+    id: "plugins-reference",
+    label: "Plugin reference",
+    path: "plugins-reference.txt",
 }];
 
 pub fn page_header(title: &str, subtitle: &str) -> String {

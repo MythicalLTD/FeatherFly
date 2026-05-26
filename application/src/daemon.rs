@@ -1,7 +1,5 @@
-use axum::{extract::Request, http::StatusCode, response::IntoResponse};
+use axum::{Router, extract::Request, http::StatusCode, response::IntoResponse};
 use std::sync::Arc;
-
-use utoipa_axum::router::OpenApiRouter;
 
 use crate::utils::response::ApiResponse;
 
@@ -25,7 +23,7 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
     let preview = crate::config::Config::apply_debug_overrides(preview, debug);
 
     if let Err(err) = crate::config::Config::ensure_directories(&preview) {
-        eprintln!("failed to prepare data directories: {err:#?}");
+        eprintln!("failed to prepare daemon directories: {err:#?}");
         return Err(1);
     }
 
@@ -56,16 +54,8 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
             )
         });
 
-    if plugin_registry.config_hook_count() > 0 {
-        tracing::debug!(
-            hooks = plugin_registry.config_hook_count(),
-            "running config.mutate pipeline"
-        );
-    }
-
     let raw_before = raw.clone();
     let raw = plugin_registry.mutate_config(&raw);
-
     if raw != raw_before {
         tracing::debug!("configuration updated by plugin config.mutate hooks");
         crate::utils::plugin_events::emit_json(
@@ -78,8 +68,6 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
             },
         );
     }
-
-    tracing::debug!(path = config_path, "applying configuration");
 
     let inner = match crate::config::Config::parse_preview(&raw) {
         Ok(inner) => inner,
@@ -97,7 +85,6 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
                 return Err(1);
             }
         };
-    tracing::debug!(path = config_path, "configuration loaded");
 
     if open_meta.identity_generated {
         let inner = config.load();
@@ -111,110 +98,9 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
         );
     }
 
-    if open_meta.config_upgraded {
-        crate::utils::plugin_events::emit_json(
-            &plugin_registry,
-            featherfly_plugin_sdk::PluginEvent::ConfigUpgraded,
-            &crate::utils::plugin_events::ConfigUpgradedPayload { path: config_path },
-        );
-    }
-
-    if let Err(err) = crate::eggs::ensure_eggs_directory(&config.load().hosting.eggs_directory) {
-        tracing::warn!(%err, "failed to create eggs directory");
-    }
-
     plugin_registry.log_startup_summary();
     plugin_registry.emit(featherfly_plugin_sdk::PluginEvent::ConfigLoaded, &raw);
-    tracing::debug!("emitting daemon.starting lifecycle event");
     plugin_registry.emit(featherfly_plugin_sdk::PluginEvent::DaemonStarting, b"");
-
-    let docker = if config.load().docker.enabled {
-        let socket = config.load().docker.socket.clone();
-        match crate::docker::bootstrap_system(&config.load()).await {
-            Ok(Some(result)) => {
-                let api_version = result
-                    .manager
-                    .version()
-                    .await
-                    .ok()
-                    .and_then(|v| v.api_version);
-                crate::utils::plugin_events::emit_json(
-                    &plugin_registry,
-                    featherfly_plugin_sdk::PluginEvent::DockerReady,
-                    &crate::utils::plugin_events::DockerReadyPayload {
-                        socket: &socket,
-                        network: &config.load().docker.network.name,
-                        network_created: result.summary.docker_network
-                            == crate::docker::NetworkEnsureResult::Created,
-                        api_version,
-                    },
-                );
-                tracing::info!(
-                    socket = %socket,
-                    network = %config.load().docker.network.name,
-                    traefik = ?result.summary.traefik,
-                    docker_installed = result.summary.docker_installed,
-                    "docker bootstrap complete"
-                );
-                if result.summary.traefik != crate::proxy::TraefikEnsureResult::Skipped {
-                    let inner = config.load();
-                    crate::utils::plugin_events::emit_json(
-                        &plugin_registry,
-                        featherfly_plugin_sdk::PluginEvent::TraefikProvisioned,
-                        &crate::utils::plugin_events::TraefikProvisionedPayload {
-                            result: crate::proxy::traefik_result_label(result.summary.traefik),
-                            image: &inner.proxy.traefik_image,
-                            network: &inner.proxy.network,
-                            tls_enabled: inner.proxy.tls_enabled,
-                        },
-                    );
-                }
-                Some(result.manager)
-            }
-            Ok(None) => {
-                if config.load().docker.enabled {
-                    crate::utils::plugin_events::emit_json(
-                        &plugin_registry,
-                        featherfly_plugin_sdk::PluginEvent::DockerUnavailable,
-                        &crate::utils::plugin_events::DockerUnavailablePayload {
-                            socket: &socket,
-                            error: "docker engine not reachable".into(),
-                        },
-                    );
-                }
-                None
-            }
-            Err(err) => {
-                crate::utils::plugin_events::emit_json(
-                    &plugin_registry,
-                    featherfly_plugin_sdk::PluginEvent::DockerUnavailable,
-                    &crate::utils::plugin_events::DockerUnavailablePayload {
-                        socket: &socket,
-                        error: err.to_string(),
-                    },
-                );
-                tracing::warn!(%err, "docker bootstrap failed — container APIs disabled");
-                None
-            }
-        }
-    } else {
-        tracing::debug!("docker integration disabled in configuration");
-        None
-    };
-
-    let cache = match crate::cache::Cache::open(&config.load().system.data).await {
-        Ok(cache) => Some(Arc::new(cache)),
-        Err(err) => {
-            tracing::warn!(%err, "sqlite cache unavailable — panel idempotency disabled");
-            None
-        }
-    };
-
-    let inner = config.load();
-    let jwt = Arc::new(crate::remote::jwt::JwtClient::new(
-        &inner.token,
-        inner.api.max_jwt_uses,
-    ));
 
     let state = Arc::new(crate::routes::AppState {
         start_time: std::time::Instant::now(),
@@ -227,28 +113,9 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
         config: Arc::clone(&config),
         plugins: plugin_registry,
         probe_guard: crate::middlewares::probe::ProbeGuard::new(),
-        docker,
-        panel: arc_swap::ArcSwapOption::from(None),
-        cache,
-        jwt,
     });
 
-    let panel_handle = crate::websocket::spawn_panel_client(Arc::clone(&state));
-    state.panel.store(Some(Arc::new(panel_handle)));
-
-    let reconcile = crate::hosting::reconcile_on_startup(&state).await;
-    tracing::info!(
-        sites = reconcile.sites_total,
-        started = reconcile.sites_started,
-        mail = reconcile.mail_synced,
-        ftp = reconcile.ftp_synced,
-        shared = reconcile.shared_stack,
-        "startup hosting reconcile complete"
-    );
-
-    crate::scheduler::spawn_scheduler(Arc::clone(&state));
-
-    let app = OpenApiRouter::new()
+    let app = Router::new()
         .merge(crate::routes::router(&state))
         .merge(crate::plugins::routes::router(&state))
         .fallback(|_req: Request| async move {
@@ -277,109 +144,47 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
         ))
         .with_state(state.clone());
 
-    tracing::debug!(
-        plugin_routes = state.plugins.routes().len(),
-        config_hooks = state.plugins.config_hook_count(),
-        "HTTP middleware stack ready"
-    );
-
-    let (mut router, openapi) = app.split_for_parts();
-    let openapi = crate::api_spec::add_plugin_routes(openapi, &state.plugins.routes());
-    let openapi = crate::api_spec::finalize_openapi(openapi, &config.load().app_name);
-
-    if !config.load().api.disable_openapi_docs {
-        router = router.route(
-            "/openapi.json",
-            axum::routing::get({
-                let openapi = openapi.clone();
-                move || async move { axum::Json(openapi) }
-            }),
-        );
-    }
-
-    if let Ok(host) = config.load().api.host.parse::<std::net::IpAddr>() {
-        let address = std::net::SocketAddr::from((host, config.load().api.port));
-
-        let listener = match tokio::net::TcpListener::bind(address).await {
-            Ok(listener) => listener,
-            Err(err) => {
-                if err.kind() == std::io::ErrorKind::AddrInUse {
-                    tracing::error!("failed to start http server (address already in use)");
-                } else {
-                    tracing::error!("failed to start http server: {:?}", err);
-                }
-                return Err(1);
-            }
-        };
-
-        tracing::info!(
-            address = %address,
-            plugins = state.plugins.summaries().len(),
-            hooks = state.plugins.hook_count(),
-            plugin_routes = state.plugins.routes().len(),
-            openapi = !config.load().api.disable_openapi_docs,
-            "FeatherFly ready"
-        );
-
-        if !config.load().api.disable_openapi_docs {
-            tracing::debug!(
-                schema = %format!("http://{address}/openapi.json"),
-                docs = crate::DOCS_WEBSITE,
-                "documentation endpoints"
-            );
-        }
-
-        state.plugins.emit(
-            featherfly_plugin_sdk::PluginEvent::DaemonStarted,
-            address.to_string().as_bytes(),
-        );
-
-        if config.load().updates.check_on_startup
-            && config.load().updates.channel != crate::utils::update::UpdateChannel::Disabled
-        {
-            let channel = config.load().updates.channel;
-            tokio::spawn(async move {
-                match crate::utils::update::check_update(channel).await {
-                    Ok(status) if status.update_available => {
-                        tracing::info!(
-                            channel = ?status.channel,
-                            latest_version = ?status.latest_version,
-                            latest_commit = ?status.latest_commit,
-                            download_url = ?status.download_url,
-                            "a newer FeatherFly build is available on GitHub"
-                        );
-                    }
-                    Ok(_) => {}
-                    Err(err) => {
-                        tracing::debug!("startup update check failed: {err:#}");
-                    }
-                }
-            });
-        }
-
-        match axum::serve(
-            listener,
-            router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
-        )
-        .await
-        {
-            Ok(_) => {}
-            Err(err) => {
-                if err.kind() == std::io::ErrorKind::AddrInUse {
-                    tracing::error!("failed to start http server (address already in use)");
-                } else {
-                    tracing::error!("failed to start http server: {:?}", err);
-                }
-                return Err(1);
-            }
-        }
-    } else {
+    let Ok(host) = config.load().api.host.parse::<std::net::IpAddr>() else {
         tracing::error!("invalid api.host configured: {}", config.load().api.host);
         return Err(1);
-    }
+    };
+
+    let address = std::net::SocketAddr::from((host, config.load().api.port));
+    let listener = match tokio::net::TcpListener::bind(address).await {
+        Ok(listener) => listener,
+        Err(err) => {
+            if err.kind() == std::io::ErrorKind::AddrInUse {
+                tracing::error!("failed to start http server (address already in use)");
+            } else {
+                tracing::error!("failed to start http server: {:?}", err);
+            }
+            return Err(1);
+        }
+    };
+
+    tracing::info!(address = %address, "FeatherFly daemon ready");
+    state.plugins.emit(
+        featherfly_plugin_sdk::PluginEvent::DaemonStarted,
+        address.to_string().as_bytes(),
+    );
+
+    let result = axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await;
 
     crate::config::Config::remove_pid_file(&config.load());
     state.plugins.shutdown_all();
+
+    if let Err(err) = result {
+        if err.kind() == std::io::ErrorKind::AddrInUse {
+            tracing::error!("failed to start http server (address already in use)");
+        } else {
+            tracing::error!("failed to start http server: {:?}", err);
+        }
+        return Err(1);
+    }
 
     Ok(())
 }

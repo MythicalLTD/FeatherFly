@@ -24,7 +24,7 @@ fn print_banner() {
 async fn main_rt() -> Result<(), i32> {
     let cli = featherfly::commands::CliCommandGroupBuilder::new(
         "featherfly",
-        "The FeatherFly daemon implementing web hosting for the panel.",
+        "The FeatherFly bare daemon for CloudPanel status integration.",
     );
 
     let mut cli = featherfly::commands::commands(cli);

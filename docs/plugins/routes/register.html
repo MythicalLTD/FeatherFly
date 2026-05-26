@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en" class="dark" data-docs-base="/featherfly/" data-build="dev">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="route.register — plugin HTTP route registration">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#000000">
+  <meta name="author" content="FeatherFly">
+  <link rel="canonical" href="https://mythicaltld.github.io/featherfly/plugins/routes/register.html">
+  <link rel="icon" type="image/png" href="https://github.com/featherpanel-com.png">
+  <link rel="apple-touch-icon" href="https://github.com/featherpanel-com.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="FeatherFly">
+  <meta property="og:title" content="route.register · FeatherFly">
+  <meta property="og:description" content="route.register — plugin HTTP route registration">
+  <meta property="og:url" content="https://mythicaltld.github.io/featherfly/plugins/routes/register.html">
+  <meta property="og:image" content="https://github.com/featherpanel-com.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="route.register · FeatherFly">
+  <meta name="twitter:description" content="route.register — plugin HTTP route registration">
+  <meta name="twitter:image" content="https://github.com/featherpanel-com.png">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <title>route.register · FeatherFly</title>
+  <script src="https://cdn.tailwindcss.com?v=dev"></script>
+  <style>
+    :root {
+      --bg: #000000;
+      --surface: #0a0a0a;
+      --border: #1a1a1a;
+      --text: #ffffff;
+      --muted: #888888;
+      --dim: #555555;
+    }
+    * { scrollbar-width: thin; scrollbar-color: #ffffff #111111; }
+    *::-webkit-scrollbar { width: 8px; height: 8px; }
+    *::-webkit-scrollbar-track { background: #111111; }
+    *::-webkit-scrollbar-thumb { background: #ffffff; border-radius: 4px; border: 2px solid #111111; }
+    *::-webkit-scrollbar-thumb:hover { background: #cccccc; }
+    body { background: var(--bg); color: var(--text); }
+    .prose-docs h1 { font-size: 1.75rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--text); letter-spacing: -0.02em; }
+    .prose-docs .lead { font-size: 1rem; color: var(--muted); margin-bottom: 1.5rem; line-height: 1.6; }
+    .prose-docs h2 { font-size: 1.125rem; font-weight: 600; margin-top: 2.5rem; margin-bottom: 0.75rem; color: var(--text); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+    .prose-docs h3 { font-size: 0.95rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.5rem; color: var(--text); }
+    .prose-docs h4 { font-size: 0.85rem; font-weight: 600; margin-top: 1rem; margin-bottom: 0.5rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .prose-docs p { margin-bottom: 0.75rem; line-height: 1.7; color: #cccccc; font-size: 0.875rem; }
+    .prose-docs ul { list-style: disc; padding-left: 1.25rem; margin-bottom: 1rem; color: #cccccc; font-size: 0.875rem; }
+    .prose-docs ol { list-style: decimal; padding-left: 1.25rem; margin-bottom: 1rem; color: #cccccc; font-size: 0.875rem; }
+    .prose-docs li { margin-bottom: 0.25rem; }
+    .prose-docs a { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
+    .prose-docs a:hover { color: var(--muted); }
+    .prose-docs code:not(pre code) { font-family: ui-monospace, monospace; font-size: 0.75rem; padding: 0.125rem 0.375rem; border: 1px solid var(--border); border-radius: 0.25rem; background: var(--surface); color: var(--text); }
+    .prose-docs pre { font-family: ui-monospace, monospace; font-size: 0.75rem; padding: 1rem; margin-bottom: 1rem; overflow-x: auto; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--surface); color: var(--text); line-height: 1.5; }
+    .prose-docs pre code { border: 0; padding: 0; background: transparent; }
+    .prose-docs table { width: 100%; font-size: 0.8125rem; margin-bottom: 1.5rem; border-collapse: collapse; }
+    .prose-docs th { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; font-weight: 600; background: var(--surface); color: var(--text); }
+    .prose-docs td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; vertical-align: top; color: #cccccc; }
+    .prose-docs hr { margin: 2rem 0; border-color: var(--border); }
+    .prose-docs details { margin-bottom: 1rem; border: 1px solid var(--border); border-radius: 0.375rem; }
+    .prose-docs summary { cursor: pointer; padding: 0.625rem 0.875rem; font-size: 0.875rem; font-weight: 500; background: var(--surface); border-radius: 0.375rem; }
+    .prose-docs details[open] summary { border-bottom: 1px solid var(--border); border-radius: 0.375rem 0.375rem 0 0; }
+    .prose-docs details .details-body { padding: 0.875rem; }
+    .sidebar-link { display: block; padding: 0.375rem 0.75rem; font-size: 0.8125rem; border-radius: 0.25rem; text-decoration: none; color: var(--muted); }
+    .sidebar-link:hover { background: var(--surface); color: var(--text); }
+    .sidebar-link-active { background: var(--surface); color: var(--text); font-weight: 500; border-left: 2px solid var(--text); }
+    .sidebar-sublink { display: block; padding: 0.25rem 0.75rem 0.25rem 1.5rem; font-size: 0.75rem; border-radius: 0.25rem; text-decoration: none; color: var(--dim); }
+    .sidebar-sublink:hover { background: var(--surface); color: var(--text); }
+    .sidebar-sublink-active { background: var(--surface); color: var(--text); font-weight: 500; }
+    .sidebar-group { font-size: 0.625rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--dim); padding: 1rem 0.75rem 0.25rem; }
+    .doc-card { display: block; padding: 1rem; border: 1px solid var(--border); border-radius: 0.375rem; text-decoration: none; transition: border-color 0.15s; }
+    .doc-card:hover { border-color: #444444; background: var(--surface); }
+    .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+    .meta-item { border: 1px solid var(--border); border-radius: 0.375rem; padding: 0.75rem; background: var(--surface); }
+    .meta-label { font-size: 0.625rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--dim); margin-bottom: 0.25rem; }
+    .meta-value { font-size: 0.8125rem; color: var(--text); }
+    .search-input { width: 100%; border: 1px solid var(--border); border-radius: 0.375rem; padding: 0.5rem 0.625rem; font-size: 0.8125rem; background: var(--surface); color: var(--text); }
+    .search-input:focus { outline: 1px solid var(--text); }
+    .search-results { margin-top: 0.5rem; max-height: 12rem; overflow-y: auto; }
+    .search-hit { display: block; padding: 0.375rem 0.5rem; font-size: 0.75rem; border-radius: 0.25rem; text-decoration: none; color: var(--muted); }
+    .search-hit:hover { background: var(--surface); color: var(--text); }
+    .source-bar { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; padding: 0.625rem 0.875rem; margin-bottom: 1.5rem; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--surface); font-size: 0.75rem; }
+    .source-bar-label { color: var(--dim); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+    .source-link { color: var(--text); text-decoration: none; border-bottom: 1px solid var(--border); }
+    .source-link:hover { border-color: var(--text); }
+    .breadcrumbs { display: flex; flex-wrap: wrap; gap: 0.25rem; font-size: 0.75rem; color: var(--dim); margin-bottom: 1rem; }
+    .breadcrumbs a { color: var(--muted); text-decoration: none; }
+    .breadcrumbs a:hover { color: var(--text); text-decoration: underline; }
+    .breadcrumbs span { color: var(--dim); }
+    .top-link { font-size: 0.75rem; color: var(--muted); text-decoration: none; padding: 0.375rem 0.625rem; border: 1px solid var(--border); border-radius: 0.25rem; }
+    .top-link:hover { color: var(--text); border-color: #444444; }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div class="flex min-h-screen">
+    <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 w-72 border-r border-[#1a1a1a] bg-black transform -translate-x-full lg:translate-x-0 transition-transform duration-200 overflow-y-auto">
+      <div class="p-4 border-b border-[#1a1a1a] flex items-center gap-3">
+        <img src="https://github.com/featherpanel-com.png" alt="FeatherFly" width="36" height="36" class="rounded-full border border-[#1a1a1a]">
+        <div>
+          <a href="../../index.html" class="font-semibold no-underline text-white block">FeatherFly</a>
+          <p class="text-xs text-[#555555]">Documentation</p>
+        </div>
+      </div>
+      <div class="p-3 border-b border-[#1a1a1a]">
+        <input id="doc-search" type="search" placeholder="Search docs…" class="search-input" autocomplete="off" aria-label="Search documentation">
+        <div id="search-results" class="search-results hidden"></div>
+      </div>
+      <nav class="p-2 pb-8" aria-label="Documentation"><div class="sidebar-group">Start</div><a href="../../index.html" class="sidebar-link">Home</a><div class="sidebar-group">Plugins</div><a href="../index.html" class="sidebar-link">Introduction</a><a href="../getting-started.html" class="sidebar-link">Getting started</a><a href="../overview.html" class="sidebar-link">Overview</a><a href="../terminology.html" class="sidebar-link">Terminology</a><a href="../architecture.html" class="sidebar-link">Architecture</a><a href="../hooks-roadmap.html" class="sidebar-link">Hooks roadmap</a><a href="../events/index.html" class="sidebar-link">Events</a><a href="../config-hooks/index.html" class="sidebar-link">Config hooks</a><a href="../config-hooks/mutate.html" class="sidebar-sublink">config.mutate</a><a href="../request-hooks/index.html" class="sidebar-link">Request hooks</a><a href="../request-hooks/intercept.html" class="sidebar-sublink">request.intercept</a><a href="../request-hooks/middleware.html" class="sidebar-sublink">middleware.inject</a><a href="index.html" class="sidebar-link">Plugin routes</a><a href="register.html" class="sidebar-sublink sidebar-sublink-active">route.register</a><a href="../json-hooks/index.html" class="sidebar-link">JSON hooks</a><a href="../json-hooks/response-body.html" class="sidebar-sublink">json.response</a><a href="../json-hooks/response-actions.html" class="sidebar-sublink">json.actions</a><a href="../host-api.html" class="sidebar-link">Host API</a><a href="../macros.html" class="sidebar-link">Macros</a><a href="../return-codes.html" class="sidebar-link">Return codes</a><a href="../source-tree.html" class="sidebar-link">Source tree</a><a href="../example.html" class="sidebar-link">Full example</a><div class="sidebar-group">Reference</div><a href="../../plugins-reference.txt" class="sidebar-link">Plugin reference</a></nav>
+    </aside>
+    <div id="sidebar-backdrop" class="fixed inset-0 z-30 bg-black/80 hidden lg:hidden"></div>
+    <div class="flex-1 flex flex-col min-w-0 lg:ml-72">
+      <header class="sticky top-0 z-20 border-b border-[#1a1a1a] bg-black/90 backdrop-blur px-4 py-3 flex items-center justify-between gap-3">
+        <button id="sidebar-toggle" type="button" class="lg:hidden top-link" aria-label="Open menu">Menu</button>
+        <div class="flex items-center gap-2 ml-auto">
+          <a href="https://github.com/MythicalLTD/featherfly" class="top-link" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://github.com/MythicalLTD/featherfly/tree/main/application/src" class="top-link hidden sm:inline" target="_blank" rel="noopener">Source</a>
+        </div>
+      </header>
+      <main class="flex-1 px-4 py-8 sm:px-10 max-w-4xl">
+        <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../../index.html">Home</a> <span>/</span><a href="../index.html">Plugins</a> <span>/</span><span>route.register</span></nav>
+        <div class="source-bar"><span class="source-bar-label">Source</span> <a href="https://github.com/MythicalLTD/featherfly/blob/main/application/src/plugins/routes.rs" class="source-link" target="_blank" rel="noopener">Implementation ↗</a></div>
+        <article class="prose-docs"><h1>route.register</h1><p class="lead">Expose new HTTP routes on the daemon router.</p>
+<div class="meta-grid"><div class="meta-item"><div class="meta-label">When</div><div class="meta-value">Registered during init; routes active once HTTP server starts.</div></div><div class="meta-item"><div class="meta-label">Input</div><div class="meta-value">Request body bytes for matching method + path.</div></div><div class="meta-item"><div class="meta-label">Output</div><div class="meta-value">Response body + status via write_route_response.</div></div><div class="meta-item"><div class="meta-label">Route matching</div><div class="meta-value">Exact path per registration. Method must match (GET/POST/PUT/PATCH/DELETE).</div></div></div>
+<p>Paths must start with `/`. Duplicate method+path registrations fail at init. Plugin routes use the same Bearer auth middleware as the system API.</p>
+<h2>Pipeline</h2>
+<p>Plugin routes merge into the main Axum router alongside core API routes.</p>
+<h2>Use cases</h2>
+<ul><li>Custom webhooks and panel callbacks</li><li>Plugin-specific REST APIs without forking FeatherFly</li><li>Static JSON config endpoints for operators</li></ul>
+<h2>Example</h2>
+<details><summary>Registration and handler</summary><div class="details-body"><h4>Register</h4><pre><code>route!(host, HTTP_METHOD_GET, &quot;/plugins/hello&quot;, on_hello);</code></pre><h4>Handler</h4><pre><code>extern &quot;C&quot; fn on_hello(ctx: *const RouteHandlerContext) -&gt; i32 {
+    let ctx = unsafe { &amp;*ctx };
+    write_route_response(ctx, 200, br#&quot;{&quot;plugin&quot;:&quot;hello&quot;}&quot;#)
+}</code></pre></div></details>
+<p><a href="index.html">← Back to index</a></p></article>
+      </main>
+      <footer class="border-t border-[#1a1a1a] py-6 px-4 text-center text-xs text-[#555555]">
+        <img src="https://github.com/featherpanel-com.png" alt="" width="20" height="20" class="inline-block rounded-full mr-2 opacity-60">
+        FeatherFly ·
+        <a href="https://github.com/MythicalLTD/featherfly" class="text-[#888888] underline">GitHub</a> ·
+        <a href="https://github.com/MythicalLTD/featherfly/tree/main/featherfly-plugin-sdk" class="text-[#888888] underline">Plugin SDK</a> ·
+        <a href="https://github.com/MythicalLTD/featherfly/tree/main/application/src/daemon.rs" class="text-[#888888] underline">Daemon</a>
+      </footer>
+    </div>
+  </div>
+  <script>
+    (function () {
+      const fromDir = "plugins/routes/";
+      const searchIndexUrl = "../../search-index.json";
+
+      const sidebar = document.getElementById('sidebar');
+      const backdrop = document.getElementById('sidebar-backdrop');
+      const toggle = document.getElementById('sidebar-toggle');
+      function openSidebar() {
+        sidebar.classList.remove('-translate-x-full');
+        backdrop.classList.remove('hidden');
+      }
+      function closeSidebar() {
+        sidebar.classList.add('-translate-x-full');
+        backdrop.classList.add('hidden');
+      }
+      if (toggle) toggle.addEventListener('click', openSidebar);
+      if (backdrop) backdrop.addEventListener('click', closeSidebar);
+
+      function relativeHref(toPath) {
+        const fromParts = fromDir.replace(/\/$/, '').split('/').filter(Boolean);
+        const toParts = toPath.split('/').filter(Boolean);
+        let common = 0;
+        while (common < fromParts.length && common < toParts.length && fromParts[common] === toParts[common]) {
+          common++;
+        }
+        const ups = fromParts.length - common;
+        const prefix = ups ? Array(ups + 1).join('../') : '';
+        return prefix + toParts.slice(common).join('/');
+      }
+
+      let searchIndex = null;
+      const searchInput = document.getElementById('doc-search');
+      const searchResults = document.getElementById('search-results');
+      fetch(searchIndexUrl + '?v=dev', { cache: 'no-store' })
+        .then(r => r.json())
+        .then(data => { searchIndex = data; })
+        .catch(() => {});
+
+      if (searchInput && searchResults) {
+        searchInput.addEventListener('input', function () {
+          const q = searchInput.value.trim().toLowerCase();
+          if (!q || !searchIndex) {
+            searchResults.classList.add('hidden');
+            searchResults.innerHTML = '';
+            return;
+          }
+          const hits = searchIndex.filter(function (e) {
+            return (e.title + ' ' + e.text).toLowerCase().includes(q);
+          }).slice(0, 10);
+          if (!hits.length) {
+            searchResults.innerHTML = '<p class="px-2 py-1 text-xs text-[#555555]">No results</p>';
+          } else {
+            searchResults.innerHTML = hits.map(function (e) {
+              return '<a class="search-hit" href="' + relativeHref(e.url) + '"><strong class="text-white">' + e.title + '</strong><br><span class="text-[#555555]">' + (e.text.slice(0, 60)) + '</span></a>';
+            }).join('');
+          }
+          searchResults.classList.remove('hidden');
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

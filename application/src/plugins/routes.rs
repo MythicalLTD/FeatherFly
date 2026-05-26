@@ -8,12 +8,11 @@ use axum::{
     routing::any,
 };
 use featherfly_plugin_sdk::{PluginEvent, ROUTE_OK};
-use utoipa_axum::router::OpenApiRouter;
 
 use crate::utils::plugin_events::{self, PluginRouteFailedPayload, PluginRouteInvokedPayload};
 
-pub fn router(state: &AppState) -> OpenApiRouter<AppState> {
-    let mut plugin_router = OpenApiRouter::new();
+pub fn router(state: &AppState) -> axum::Router<AppState> {
+    let mut plugin_router = axum::Router::new();
 
     for path in unique_paths(state) {
         plugin_router = plugin_router.route(&path, any(dispatch_plugin_route));

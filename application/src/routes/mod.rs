@@ -1,14 +1,9 @@
-use arc_swap::ArcSwapOption;
 use serde::Serialize;
 use std::{sync::Arc, time::Instant};
-use utoipa::ToSchema;
-use utoipa_axum::router::OpenApiRouter;
 
 pub mod api;
-pub mod download;
-pub mod upload;
 
-#[derive(Debug, ToSchema, Serialize, Clone, Copy)]
+#[derive(Debug, Serialize, Clone, Copy)]
 #[serde(rename_all = "snake_case")]
 pub enum AppContainerType {
     Official,
@@ -17,29 +12,31 @@ pub enum AppContainerType {
 }
 
 pub struct AppState {
-    #[allow(dead_code)]
     pub start_time: Instant,
     pub container_type: AppContainerType,
     pub version: String,
     pub config: Arc<crate::config::Config>,
     pub plugins: crate::plugins::PluginRegistry,
     pub probe_guard: crate::middlewares::probe::ProbeGuard,
-    pub docker: Option<Arc<crate::docker::DockerManager>>,
-    pub panel: ArcSwapOption<crate::websocket::PanelHandle>,
-    pub cache: Option<Arc<crate::cache::Cache>>,
-    pub jwt: Arc<crate::remote::jwt::JwtClient>,
 }
 
 pub type State = Arc<AppState>;
 pub type GetState = axum::extract::State<State>;
 
-pub fn router(state: &State) -> OpenApiRouter<State> {
-    OpenApiRouter::new()
-        .routes(utoipa_axum::routes!(crate::controllers::health::get))
-        .routes(utoipa_axum::routes!(crate::controllers::health::live))
-        .routes(utoipa_axum::routes!(crate::controllers::health::ready))
+pub fn router(state: &State) -> axum::Router<State> {
+    axum::Router::new()
+        .route(
+            "/health",
+            axum::routing::get(crate::controllers::health::get),
+        )
+        .route(
+            "/live",
+            axum::routing::get(crate::controllers::health::live),
+        )
+        .route(
+            "/ready",
+            axum::routing::get(crate::controllers::health::ready),
+        )
         .nest("/api", api::router(state))
-        .nest("/download", download::router(state))
-        .nest("/upload", upload::router(state))
         .with_state(state.clone())
 }

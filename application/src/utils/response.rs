@@ -1,8 +1,7 @@
 use axum::{http::StatusCode, response::IntoResponse};
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 
-#[derive(ToSchema, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct ApiError {
     pub error: String,
     pub code: String,

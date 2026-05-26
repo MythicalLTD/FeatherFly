@@ -61,16 +61,6 @@ impl crate::commands::CliCommand<DiagnosticsArgs> for DiagnosticsCommand {
                 write_line(&mut report, "tmp directory", &inner.system.tmp_directory)?;
                 write_line(&mut report, "username", &inner.system.username)?;
                 write_line(&mut report, "pid file", &inner.system.pid_file)?;
-                write_line(
-                    &mut report,
-                    "plugins directory",
-                    &inner.system.plugins_directory,
-                )?;
-                write_line(
-                    &mut report,
-                    "plugins enabled",
-                    &inner.plugins.enabled.to_string(),
-                )?;
 
                 write_section(&mut report, "runtime")?;
                 write_line(

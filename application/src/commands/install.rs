@@ -85,9 +85,6 @@ fn install_layout() -> anyhow::Result<()> {
     for dir in [
         CONFIG_DIR,
         "/var/lib/featherfly",
-        "/var/lib/featherfly/volumes",
-        "/var/lib/featherfly/archives",
-        "/var/lib/featherfly/backups",
         "/var/lib/featherfly/plugins",
         "/var/log/featherfly",
         "/tmp/featherfly",

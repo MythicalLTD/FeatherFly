@@ -567,7 +567,7 @@ fn events_index_page() -> String {
         header = html::page_header(
             "Lifecycle events",
             &format!(
-                "Automatic and lifecycle hooks — {} events, JSON payloads for HTTP, Docker, hosting, and system actions.",
+                "Automatic and lifecycle hooks — {} events, JSON payloads for daemon, HTTP, and plugin runtime actions.",
                 EVENT_DOCS.len()
             ),
         ),
@@ -637,9 +637,9 @@ fn json_hooks_index_page() -> String {
 {card_grid}
 <h2>Action object shape</h2>
 <pre><code>{{
-  \"id\": \"check_update\",
-  \"label\": \"Check for updates\",
-  \"step\": \"GET /api/system/update\"
+  \"id\": \"plugin_action\",
+  \"label\": \"Plugin action\",
+  \"step\": \"GET /plugins/example\"
 }}</code></pre>
 <h2>Quick reference</h2>
 <table><thead><tr><th>Target</th><th>Summary</th><th>Route matching</th></tr></thead><tbody>{rows}</tbody></table>",

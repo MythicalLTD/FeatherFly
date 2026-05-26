@@ -48,17 +48,6 @@ mod search {
             "plugins/json-hooks/index.html".into(),
             "plugins/json-hooks/response-body.html".into(),
             "plugins/json-hooks/response-actions.html".into(),
-            "api/index.html".into(),
-            "api/endpoints.html".into(),
-            "api/health.html".into(),
-            "api/system.html".into(),
-            "api/system-overview.html".into(),
-            "api/system-plugins.html".into(),
-            "api/system-config.html".into(),
-            "api/system-restart.html".into(),
-            "api/system-update.html".into(),
-            "api/system-upgrade.html".into(),
-            "tests/index.html".into(),
         ];
 
         for doc in EVENT_DOCS {
@@ -78,10 +67,9 @@ mod tests {
     use featherfly_plugin_sdk::metadata::EVENT_DOCS;
 
     #[test]
-    fn sitemap_urls_include_every_event_page_and_endpoint_index() {
+    fn sitemap_urls_include_every_event_page() {
         let urls = search::all_urls();
 
-        assert!(urls.iter().any(|url| url == "api/endpoints.html"));
         for doc in EVENT_DOCS {
             let expected = format!("plugins/events/{}.html", doc.name.replace('.', "-"));
             assert!(

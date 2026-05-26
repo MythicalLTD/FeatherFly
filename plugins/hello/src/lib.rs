@@ -10,12 +10,8 @@ extern "C" fn init(host: *const HostApi) -> i32 {
     hook!(host, PluginEvent::DaemonStarted, on_daemon_started);
     hook!(host, PluginEvent::DaemonStopping, on_daemon_stopping);
     hook!(host, PluginEvent::RequestNotFound, on_request_not_found);
-    hook!(host, PluginEvent::DockerReady, on_docker_ready);
-    hook!(host, PluginEvent::ContainerCreated, on_container_created);
-    hook!(host, PluginEvent::ContainerRestarted, on_container_restarted);
-    hook!(host, PluginEvent::SiteProvisioned, on_site_provisioned);
-    hook!(host, PluginEvent::DatabaseCreated, on_database_created);
-    hook!(host, PluginEvent::MailAccountCreated, on_mail_account_created);
+    hook!(host, PluginEvent::ProbeClientBlocked, on_probe_blocked);
+    hook!(host, PluginEvent::PluginRouteInvoked, on_plugin_route_invoked);
     hook_config!(host, on_config_mutate);
     hook_request!(
         host,
@@ -48,7 +44,7 @@ extern "C" fn init(host: *const HostApi) -> i32 {
         on_hello_route
     );
     unsafe {
-        log_info(host, "hello plugin registered v5 hooks");
+        log_info(host, "hello plugin registered v6 hooks");
     }
     0
 }
@@ -68,49 +64,14 @@ extern "C" fn on_request_not_found(ctx: *const EventContext) -> HookResult {
     HookResult::r#continue()
 }
 
-extern "C" fn on_docker_ready(ctx: *const EventContext) -> HookResult {
-    let ctx = unsafe { &*ctx };
-    let payload = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
-    let _json = std::str::from_utf8(payload).unwrap_or_default();
-    HookResult::r#continue()
-}
-
-extern "C" fn on_site_provisioned(ctx: *const EventContext) -> HookResult {
-    let ctx = unsafe { &*ctx };
-    let payload = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
-    let _json = std::str::from_utf8(payload).unwrap_or_default();
-    HookResult::r#continue()
-}
-
-extern "C" fn on_database_created(ctx: *const EventContext) -> HookResult {
-    let ctx = unsafe { &*ctx };
-    let payload = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
-    let _json = std::str::from_utf8(payload).unwrap_or_default();
-    HookResult::r#continue()
-}
-
-extern "C" fn on_mail_account_created(ctx: *const EventContext) -> HookResult {
-    let ctx = unsafe { &*ctx };
-    let payload = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
-    let _json = std::str::from_utf8(payload).unwrap_or_default();
-    HookResult::r#continue()
-}
-
-extern "C" fn on_container_restarted(ctx: *const EventContext) -> HookResult {
-    let ctx = unsafe { &*ctx };
-    let payload = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
-    let _json = std::str::from_utf8(payload).unwrap_or_default();
-    HookResult::r#continue()
-}
-
-extern "C" fn on_container_created(ctx: *const EventContext) -> HookResult {
-    let ctx = unsafe { &*ctx };
-    let payload = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
-    let _json = std::str::from_utf8(payload).unwrap_or_default();
-    HookResult::r#continue()
-}
-
 extern "C" fn on_probe_blocked(ctx: *const EventContext) -> HookResult {
+    let ctx = unsafe { &*ctx };
+    let payload = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
+    let _json = std::str::from_utf8(payload).unwrap_or_default();
+    HookResult::r#continue()
+}
+
+extern "C" fn on_plugin_route_invoked(ctx: *const EventContext) -> HookResult {
     let ctx = unsafe { &*ctx };
     let payload = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
     let _json = std::str::from_utf8(payload).unwrap_or_default();
@@ -156,7 +117,7 @@ extern "C" fn on_api_middleware(_ctx: *const RequestHookContext) -> i32 {
 
 extern "C" fn on_hello_route(ctx: *const RouteHandlerContext) -> i32 {
     let ctx = unsafe { &*ctx };
-    let body = br#"{"plugin":"hello","api_version":5,"route":"GET /plugins/hello"}"#;
+    let body = br#"{"plugin":"hello","api_version":6,"route":"GET /plugins/hello"}"#;
     write_route_response(ctx, 200, body)
 }
 

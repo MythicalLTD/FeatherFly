@@ -1,130 +1,32 @@
-# FeatherFly / featherd node configuration (Wings-compatible layout)
+# FeatherFly / featherd bare daemon configuration.
 # Binary: featherfly and featherd are the same daemon (featherd is an alias).
 # On first boot, empty uuid / token_id / token are auto-generated and saved here.
 
 app_name: FeatherFly
 # When true (or when started with --debug), load ./config.yml instead of /etc/featherfly/config.yml.
-# Does not override system.data, plugins, or other paths — set those explicitly below.
 debug: false
 
 uuid: ""
 token_id: ""
 token: "change-me-to-a-long-random-string"
 
+# Optional CloudPanel base URL for operators and status output.
 remote: ""
-remote_query:
-  timeout: 30
-  boot_servers_per_page: 50
-  # Panel HTTP retry attempts with exponential backoff (Wings-compatible).
-  retry_limit: 10
-  # Extra query params on every panel HTTP request.
-  query: {}
-  # Custom headers for panel HTTP + websocket (Cloudflare Access, etc.).
-  custom_headers: {}
-
-allowed_mounts: []
-allowed_origins: []
 
 api:
   host: 0.0.0.0
   port: 9090
-  disable_openapi_docs: false
 
 system:
   root_directory: /var/lib/featherfly
   log_directory: /var/log/featherfly
-  data: /var/lib/featherfly/volumes
-  archive_directory: /var/lib/featherfly/archives
-  backup_directory: /var/lib/featherfly/backups
   tmp_directory: /tmp/featherfly
   username: featherfly
   pid_file: /var/run/featherfly/daemon.pid
   plugins_directory: /var/lib/featherfly/plugins
-  timezone: UTC
 
-docker:
+plugins:
   enabled: true
-  # Install Docker via get.docker.com and `systemctl enable --now docker` when missing at boot.
-  auto_install: true
-  socket: /var/run/docker.sock
-  network:
-    interface: 172.18.0.1
-    name: featherfly_nw
-    network_mode: featherfly_nw
-    driver: bridge
-    subnet: 172.18.0.0/16
-    enable_icc: true
-    is_internal: false
-  tmpfs_size: 100
-  container_pid_limit: 512
-
-proxy:
-  enabled: true
-  provider: traefik
-  cert_resolver: letsencrypt
-  entrypoint_http: web
-  entrypoint_https: websecure
-  network: featherfly_nw
-  tls_enabled: true
-  redirect_http_to_https: true
-  compress_responses: true
-  security_headers: true
-  health_check_path: /
-  health_check_interval: 30s
-  include_www_alias: true
-  auto_provision: true
-  traefik_image: traefik:v3.3
-  # Set acme_email to enable automatic Let's Encrypt HTTPS (HTTP works without it).
-  acme_email: ""
-  dashboard_enabled: false
-  publish_http_port: 80
-  publish_https_port: 443
-
-hosting:
-  eggs_directory: /var/lib/featherfly/eggs
-  auto_pull_images: true
-  # Pull latest stack images and recreate Traefik + shared containers on boot.
-  auto_update_images: true
-  # One shared mailserver, Roundcube, SFTP, FTP, phpMyAdmin, and database servers for all sites.
-  shared_services: true
-  # Start site containers and sync mail/FTP/shared stack on daemon boot.
-  reconcile_on_startup: true
-  # Optional custom error pages (404.html, 500.html, 502.html, 503.html).
-  error_pages_directory: /var/lib/featherfly/error-pages
-  attach_proxy_network: true
-  mailserver_image: mailserver/docker-mailserver:latest
-  roundcube_image: roundcube/roundcubemail:latest
-  sftp_image: atmoz/sftp:latest
-  ftp_image: stilliard/pure-ftpd:hardened
-  mail_subdomain: mail
-  webmail_subdomain: webmail
-  phpmyadmin_subdomain: phpmyadmin
-  phpmyadmin_image: phpmyadmin:latest
-  mysql_image: mariadb:latest
-  postgres_image: postgres:latest
-  redis_image: redis:latest
-  mongodb_image: mongo:latest
-  # Root password for shared database servers (auto-generated in system.data if empty).
-  database_root_password: ""
-  ports:
-    http: 80
-    https: 443
-    sftp: 2222
-    ftp: 21
-    ftp_passive_min: 40000
-    ftp_passive_max: 40100
-    smtp: 25
-    submission: 587
-    smtps: 465
-    imap: 143
-    imaps: 993
-    pop3: 110
-    pop3s: 995
-    mysql: 3306
-    postgres: 5432
-    redis: 6379
-    mongodb: 27017
-    publish_service_ports: true
 
 logging:
   enabled: true
@@ -144,14 +46,6 @@ logging:
     include_target: false
     include_file_line: false
 
-plugins:
-  enabled: true
-
-management:
-  config_edit: true
-  restart: true
-  upgrade: true
-
 security:
   probe_protection:
     enabled: true
@@ -161,8 +55,3 @@ security:
     log_requests: true
     log_unknown_routes: true
     log_blocked: true
-
-updates:
-  channel: stable
-  check_on_startup: true
-  ignore_panel_upgrades: false

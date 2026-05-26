@@ -20,6 +20,7 @@ pub fn default_output_dir() -> PathBuf {
 }
 
 pub fn generate_all(output: &Path, openapi: &utoipa::openapi::OpenApi) -> std::io::Result<()> {
+    clean_output_dir(output)?;
     fs::create_dir_all(output.join("plugins"))?;
     fs::create_dir_all(output.join("api"))?;
 
@@ -38,6 +39,7 @@ pub fn generate_all(output: &Path, openapi: &utoipa::openapi::OpenApi) -> std::i
 }
 
 pub fn generate_minimal(output: &Path) -> std::io::Result<()> {
+    clean_output_dir(output)?;
     fs::create_dir_all(output.join("plugins"))?;
     generate_plugin_docs(&output.join("plugins"))?;
     write_plugins_reference(&output.join("plugins-reference.txt"))?;
@@ -46,6 +48,13 @@ pub fn generate_minimal(output: &Path) -> std::io::Result<()> {
     sitemap::write(output)?;
     write_robots(output)?;
     fs::write(output.join(".nojekyll"), "")
+}
+
+fn clean_output_dir(output: &Path) -> std::io::Result<()> {
+    if output.exists() {
+        fs::remove_dir_all(output)?;
+    }
+    fs::create_dir_all(output)
 }
 
 fn write_robots(output: &Path) -> std::io::Result<()> {
@@ -64,7 +73,7 @@ fn write_hub(path: &Path) -> std::io::Result<()> {
         "Home",
         PageContext::root("home"),
         &html::PageMeta::new(
-            "FeatherFly documentation — web hosting daemon, HTTP API, and native plugin SDK.",
+            "FeatherFly documentation — bare daemon and native plugin SDK reference.",
             "index.html",
         )
         .with_source("Repository", ""),
@@ -76,16 +85,12 @@ fn hub_body() -> String {
     format!(
         "{header}
 {plugin_cards}
-<h2>HTTP API</h2>
-{api_cards}
 <h2>Reference</h2>
 {ref_cards}
-<h2>Quality</h2>
-{test_card}
 <p class=\"text-xs text-[#555555] mt-8\">Plugin API v{version} · {repo} · run <code>make docs</code> to regenerate</p>",
         header = html::page_header(
             "FeatherFly documentation",
-            "Web hosting daemon for FeatherPanel — HTTP API and native plugin reference.",
+            "Bare daemon for CloudPanel status integration — native plugin SDK reference.",
         ),
         plugin_cards = html::card_grid(&[
             (
@@ -144,33 +149,6 @@ fn hub_body() -> String {
                 "v4 plugin with every hook type.",
             ),
         ]),
-        api_cards = html::card_grid(&[
-            (
-                "api/index.html",
-                "HTTP API",
-                "Grouped routes with curl examples and source links.",
-            ),
-            (
-                "api/endpoints.html",
-                "All endpoints",
-                "Generated method/path index from OpenAPI.",
-            ),
-            (
-                "api/health.html",
-                "Health",
-                "Unauthenticated liveness probe.",
-            ),
-            (
-                "api/system.html",
-                "System",
-                "Host summary, version, panel actions.",
-            ),
-            (
-                "api/openapi.json",
-                "OpenAPI JSON",
-                "Machine-readable schema.",
-            ),
-        ]),
         ref_cards = html::card_grid(&[
             (
                 "plugins/macros.html",
@@ -193,11 +171,6 @@ fn hub_body() -> String {
                 "Complete plain-text hook catalog — every lifecycle event.",
             ),
         ]),
-        test_card = html::card_grid(&[(
-            "tests/index.html",
-            "Unit tests",
-            "CI test inventory and last run results.",
-        )]),
         version = featherfly_plugin_sdk::metadata::plugin_api_version(),
         repo = html::github_source("", "GitHub repository"),
     )

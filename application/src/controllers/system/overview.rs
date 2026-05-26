@@ -4,9 +4,8 @@ use crate::{
 };
 use serde::Serialize;
 use sysinfo::System;
-use utoipa::ToSchema;
 
-#[derive(ToSchema, Serialize)]
+#[derive(Serialize)]
 struct ResponseCpu<'a> {
     name: &'a str,
     brand: &'a str,
@@ -15,7 +14,7 @@ struct ResponseCpu<'a> {
     cpu_count: usize,
 }
 
-#[derive(ToSchema, Serialize)]
+#[derive(Serialize)]
 struct ResponseMemory {
     total_bytes: u64,
     free_bytes: u64,
@@ -23,26 +22,17 @@ struct ResponseMemory {
     used_bytes_process: u64,
 }
 
-#[derive(ToSchema, Serialize)]
+#[derive(Serialize)]
 struct Response<'a> {
     version: &'a str,
     local_time: chrono::DateTime<chrono::Local>,
     container_type: crate::routes::AppContainerType,
-    #[schema(inline)]
     cpu: ResponseCpu<'a>,
-    #[schema(inline)]
     memory: ResponseMemory,
     architecture: &'static str,
     kernel_version: String,
 }
 
-#[utoipa::path(
-    get,
-    path = "/",
-    operation_id = "get_system_overview",
-    security(("bearer_auth" = [])),
-    responses((status = OK, body = inline(Response))),
-)]
 pub async fn get(state: GetState) -> ApiResponseResult {
     let mut sys = System::new_all();
     sys.refresh_cpu_all();
@@ -60,17 +50,17 @@ pub async fn get(state: GetState) -> ApiResponseResult {
         }
     }
 
-    let cpu = &sys.cpus()[0];
+    let cpu = sys.cpus().first();
 
     ApiResponse::new_serialized(Response {
         version: &state.version,
         local_time: chrono::Local::now(),
         container_type: state.container_type,
         cpu: ResponseCpu {
-            name: cpu.name(),
-            brand: cpu.brand(),
-            vendor_id: cpu.vendor_id(),
-            frequency_mhz: cpu.frequency(),
+            name: cpu.map_or("unknown", sysinfo::Cpu::name),
+            brand: cpu.map_or("unknown", sysinfo::Cpu::brand),
+            vendor_id: cpu.map_or("unknown", sysinfo::Cpu::vendor_id),
+            frequency_mhz: cpu.map_or(0, sysinfo::Cpu::frequency),
             cpu_count: sys.cpus().len(),
         },
         memory: ResponseMemory {

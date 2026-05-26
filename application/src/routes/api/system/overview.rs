@@ -1,8 +1,10 @@
 use crate::routes::State;
-use utoipa_axum::{router::OpenApiRouter, routes};
 
-pub fn router(state: &State) -> OpenApiRouter<State> {
-    OpenApiRouter::new()
-        .routes(routes!(crate::controllers::system::overview::get))
+pub fn router(state: &State) -> axum::Router<State> {
+    axum::Router::new()
+        .route(
+            "/",
+            axum::routing::get(crate::controllers::system::overview::get),
+        )
         .with_state(state.clone())
 }

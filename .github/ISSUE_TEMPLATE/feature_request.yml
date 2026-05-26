@@ -7,7 +7,7 @@ body:
     id: problem
     attributes:
       label: Problem or use case
-      description: What problem does this solve for hosting / FeatherPanel?
+      description: What problem does this solve for CloudPanel status integration?
     validations:
       required: true
   - type: textarea

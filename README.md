@@ -1,33 +1,32 @@
 # FeatherFly
 
-Web hosting daemon for [FeatherPanel](https://featherpanel.com).
+Bare HTTP daemon for CloudPanel status integration.
 
 ## Status
 
-**Experimental — not a Plesk replacement yet.**
+Experimental minimal daemon.
 
-Single-node daemon with Wings-compatible auth: one **node bearer token** for panel API calls, **JWTs** for browser downloads (and WebSockets/uploads planned). See [auth model](.cursor/plan/auth-model.md).
+The daemon exposes health endpoints and authenticated system status using a single node bearer token.
 
-## Quick start
+## Quick Start
 
 ```bash
 make build
-cargo run --bin featherfly -- configure   # first-time setup
-cargo run --bin featherfly                # start daemon
+cargo run --bin featherfly -- configure --panel-url https://panel.example.com --token change-me
+cargo run --bin featherfly
 curl http://localhost:9090/health
 ```
 
 ## Development
 
 ```bash
-make ci      # fmt, docs, clippy, test, build
-make docs    # generate static documentation
+make ci
 make test
 ```
 
-## Security and planning docs
+## Security And Planning Docs
 
-- [Auth model (Wings-compatible)](.cursor/plan/auth-model.md)
+- [Auth model](.cursor/plan/auth-model.md)
 - [Roadmap](.cursor/plan/featherd-roadmap.md)
 - [Threat model](.cursor/plan/threat-model.md)
 - [Security review notes](.cursor/plan/security-review.md)

@@ -10,7 +10,7 @@ license = "MIT"
 authors = ["MythicalSystems Studios"]
 repository = "https://github.com/MythicalLTD/featherfly"
 homepage = "https://featherpanel.com"
-description = "Web hosting daemon for the FeatherPanel ecosystem"
+description = "Bare daemon for CloudPanel status integration"
 rust-version = "1.95.0"
 
 [workspace.lints.rust]
@@ -33,11 +33,10 @@ match_wildcard_for_single_variants = "allow"
 
 [workspace.dependencies]
 anyhow = "1.0.98"
-axum = { version = "0.8.1", features = ["http2", "ws", "multipart"] }
+axum = { version = "0.8.1", features = ["http2"] }
 serde = { version = "1.0.138", features = ["derive"] }
-utoipa = { version = "5.4.0", features = ["axum_extras", "chrono"] }
-utoipa-axum = "0.2.0"
 tokio = { version = "1.43.0", features = ["fs", "net", "signal", "process", "rt-multi-thread", "sync"] }
+utoipa = { version = "5.4.0", features = ["axum_extras", "chrono"] }
 featherfly-plugin-sdk = { path = "featherfly-plugin-sdk", version = "0.1.0" }
 
 [profile.dev.package."*"]

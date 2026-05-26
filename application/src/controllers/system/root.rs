@@ -1,14 +1,10 @@
 use crate::{
     routes::GetState,
-    utils::{
-        actions::{ApiAction, system_actions},
-        response::{ApiResponse, ApiResponseResult},
-    },
+    utils::response::{ApiResponse, ApiResponseResult},
 };
 use serde::Serialize;
-use utoipa::ToSchema;
 
-#[derive(ToSchema, Serialize)]
+#[derive(Serialize)]
 struct Response<'a> {
     uuid: &'a str,
     token_id: &'a str,
@@ -18,16 +14,8 @@ struct Response<'a> {
     kernel_version: String,
     os: &'static str,
     version: &'a str,
-    actions: Vec<ApiAction>,
 }
 
-#[utoipa::path(
-    get,
-    path = "/",
-    operation_id = "get_system",
-    security(("bearer_auth" = [])),
-    responses((status = OK, body = inline(Response))),
-)]
 pub async fn get(state: GetState) -> ApiResponseResult {
     let inner = state.config.load();
     ApiResponse::new_serialized(Response {
@@ -41,7 +29,6 @@ pub async fn get(state: GetState) -> ApiResponseResult {
         kernel_version: sysinfo::System::kernel_long_version(),
         os: std::env::consts::OS,
         version: &state.version,
-        actions: system_actions(),
     })
     .ok()
 }

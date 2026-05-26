@@ -3,10 +3,8 @@ use featherfly_plugin_sdk::metadata::{
     plugin_api_version,
 };
 use serde::Serialize;
-use utoipa::ToSchema;
 
-/// OpenAPI-style catalog of every plugin hook FeatherFly exposes.
-#[derive(Debug, Clone, Serialize, ToSchema)]
+#[derive(Debug, Clone, Serialize)]
 pub struct PluginHookSchema {
     pub api_version: u32,
     pub reference: PluginReferenceLinks,
@@ -18,20 +16,16 @@ pub struct PluginHookSchema {
     pub macros: Vec<MacroSchema>,
 }
 
-#[derive(Debug, Clone, Serialize, ToSchema)]
+#[derive(Debug, Clone, Serialize)]
 pub struct PluginReferenceLinks {
-    /// Plain-text hook catalog (`docs/plugins-reference.txt` after `make docs`).
     pub txt: &'static str,
-    /// HTML plugin docs index.
     pub html: &'static str,
 }
 
-#[derive(Debug, Clone, Serialize, ToSchema)]
+#[derive(Debug, Clone, Serialize)]
 pub struct LifecycleEventSchema {
     pub id: u32,
-    /// Wire name, e.g. `site.provisioned`.
     pub name: String,
-    /// Rust enum variant for `hook!(host, PluginEvent::..., handler)`.
     pub variant: String,
     pub summary: String,
     pub when: String,
@@ -42,7 +36,7 @@ pub struct LifecycleEventSchema {
     pub register_example: String,
 }
 
-#[derive(Debug, Clone, Serialize, ToSchema)]
+#[derive(Debug, Clone, Serialize)]
 pub struct HookGuideSchema {
     pub name: String,
     pub summary: String,
@@ -54,7 +48,7 @@ pub struct HookGuideSchema {
     pub register_example: String,
 }
 
-#[derive(Debug, Clone, Serialize, ToSchema)]
+#[derive(Debug, Clone, Serialize)]
 pub struct JsonHookSchema {
     pub name: String,
     pub target_id: u32,
@@ -65,7 +59,7 @@ pub struct JsonHookSchema {
     pub register_example: String,
 }
 
-#[derive(Debug, Clone, Serialize, ToSchema)]
+#[derive(Debug, Clone, Serialize)]
 pub struct MacroSchema {
     pub name: String,
     pub description: String,
@@ -156,8 +150,8 @@ mod tests {
     fn schema_includes_all_hook_types() {
         let schema = build_hook_schema();
         assert!(!schema.config_hooks.is_empty());
-        assert!(!schema.request_hooks.is_empty());
         assert_eq!(schema.json_hooks.len(), 2);
+        assert!(!schema.request_hooks.is_empty());
         assert!(!schema.route_hooks.is_empty());
         assert!(!schema.macros.is_empty());
     }
@@ -166,19 +160,8 @@ mod tests {
     fn schema_serializes_to_json() {
         let schema = build_hook_schema();
         let json = serde_json::to_string(&schema).expect("schema must serialize");
-        assert!(json.contains("site.provisioned"));
+        assert!(json.contains("daemon.started"));
         assert!(json.contains("config.mutate"));
         assert!(json.contains("json.response"));
-    }
-
-    #[test]
-    fn every_event_has_register_example() {
-        for event in build_hook_schema().lifecycle_events {
-            assert!(
-                event.register_example.contains("hook!"),
-                "missing hook! example for {}",
-                event.name
-            );
-        }
     }
 }

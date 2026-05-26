@@ -1,10 +1,18 @@
 use crate::routes::State;
-use utoipa_axum::{router::OpenApiRouter, routes};
 
-pub fn router(state: &State) -> OpenApiRouter<State> {
-    OpenApiRouter::new()
-        .routes(routes!(crate::controllers::system::plugins::get))
-        .routes(routes!(crate::controllers::system::plugins::schema))
-        .routes(routes!(crate::controllers::system::plugins::reload))
+pub fn router(state: &State) -> axum::Router<State> {
+    axum::Router::new()
+        .route(
+            "/",
+            axum::routing::get(crate::controllers::system::plugins::get),
+        )
+        .route(
+            "/schema",
+            axum::routing::get(crate::controllers::system::plugins::schema),
+        )
+        .route(
+            "/reload",
+            axum::routing::post(crate::controllers::system::plugins::reload),
+        )
         .with_state(state.clone())
 }
