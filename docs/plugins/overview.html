@@ -128,6 +128,7 @@
 <li><strong>Request hooks</strong> — run before HTTP handlers (<code>request.intercept</code>, <code>middleware.inject</code>).</li>
 <li><strong>Plugin routes</strong> — register new HTTP endpoints on the daemon router.</li>
 <li><strong>JSON mutation hooks</strong> — callbacks that receive JSON, may rewrite it, and return modified output for HTTP responses.</li>
+<li><strong>CloudPanel command hooks</strong> — rewrite or cancel CloudPanel CLI operations before <code>clpctl</code> runs.</li>
 </ol>
 <p>All hooks for a given target run in <strong>plugin load order</strong> (alphabetical by filename in the plugins directory).</p>
 

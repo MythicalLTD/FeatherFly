@@ -90,6 +90,15 @@ pub const RETURN_CODES: &str = r#"## init
 | `JSON_MUTATE_MODIFIED` (0) | Output written via `write_json_output` |
 | `JSON_MUTATE_UNCHANGED` (1) | Keep prior JSON |
 | negative | Error; prior JSON kept |
+
+## CloudPanel command hooks
+
+| Code | Meaning |
+|------|---------|
+| `CLOUDPANEL_CONTINUE` (0) | Keep current CLI args and continue |
+| `CLOUDPANEL_MODIFIED` (1) | Output written via `write_cloudpanel_args` |
+| `CLOUDPANEL_CANCEL` (2) | Cancel the command; optional reason from `write_cloudpanel_cancel` |
+| negative | Error; current args kept |
 "#;
 
 pub const REQUEST_PIPELINE: &str = r#"## HTTP request stack
@@ -143,6 +152,7 @@ pub const CAPABILITIES: &[&str] = &[
     "Register new HTTP routes on the daemon router (route.register)",
     "Modify JSON API response bodies before they are sent to clients",
     "Inject, remove, or rewrite action steps in API responses",
+    "Inspect, mutate, or cancel CloudPanel CLI commands before execution",
     "Cancel remaining handlers for the same event (lifecycle hooks only)",
 ];
 
@@ -157,6 +167,7 @@ Plugins register hooks during `init`. Hook systems:
 3. **Request hooks** — run before HTTP handlers (`request.intercept`, `middleware.inject`).
 4. **Plugin routes** — register new HTTP endpoints on the daemon router.
 5. **JSON mutation hooks** — callbacks that receive JSON, may rewrite it, and return modified output for HTTP responses.
+6. **CloudPanel command hooks** — rewrite or cancel CloudPanel CLI operations before `clpctl` runs.
 
 All hooks for a given target run in **plugin load order** (alphabetical by filename in the plugins directory)."#;
 
@@ -180,6 +191,7 @@ pub const HOST_API: &str = r#"During init, FeatherFly passes a HostApi struct:
 - register_request_hook — register request.intercept or middleware.inject
 - register_route — register a plugin HTTP route (GET/POST/PUT/PATCH/DELETE)
 - register_json_hook — register a JSON mutation callback
+- register_cloudpanel_hook — inspect, mutate, or cancel CloudPanel CLI commands
 - log_info — write an info line to the daemon log
 
 Register hooks only inside init. Callback pointers are kept until shutdown.
@@ -192,6 +204,7 @@ Return codes:
 - REQUEST_CONTINUE (0) — pass request to next hook/handler
 - REQUEST_RESPOND (1) — short-circuit with write_request_response
 - ROUTE_OK (0) — route handled via write_route_response
+- CLOUDPANEL_CONTINUE / CLOUDPANEL_MODIFIED / CLOUDPANEL_CANCEL — continue, replace args, or block a CloudPanel command
 - Negative — error; input is kept"#;
 
 pub const BUILD_AND_INSTALL: &str = r#"**Requirements:** same OS and CPU architecture as the FeatherFly binary (e.g. linux x86_64 musl build needs a musl-linked plugin).
@@ -221,11 +234,12 @@ make plugin-ship PLUGIN=plugins/hello
 **Version mismatch:** if `descriptor.api_version` ≠ daemon API version, the plugin is skipped with a warning."#;
 
 pub const FULL_PLUGIN_EXAMPLE: &str = r##"use featherfly_plugin_sdk::{
-    declare_plugin, hook, hook_config, hook_json, hook_request, log_info, route,
-    write_json_output, write_route_response, write_yaml_output,
-    ConfigMutateContext, EventContext, HookResult, HostApi, JsonMutateContext, JsonMutateTarget,
-    PluginEvent, RequestHookContext, RequestHookPhase, RouteHandlerContext,
-    CONFIG_MUTATE_UNCHANGED, HTTP_METHOD_GET, JSON_MUTATE_UNCHANGED, REQUEST_CONTINUE,
+    declare_plugin, hook, hook_cloudpanel, hook_config, hook_json, hook_request, log_info, route,
+    write_cloudpanel_cancel, write_json_output, write_route_response, write_yaml_output,
+    CloudPanelCommandContext, ConfigMutateContext, EventContext, HookResult, HostApi,
+    JsonMutateContext, JsonMutateTarget, PluginEvent, RequestHookContext, RequestHookPhase,
+    RouteHandlerContext, CONFIG_MUTATE_UNCHANGED, CLOUDPANEL_CONTINUE, HTTP_METHOD_GET,
+    JSON_MUTATE_UNCHANGED, REQUEST_CONTINUE,
 };
 
 extern "C" fn init(host: *const HostApi) -> i32 {
@@ -233,6 +247,7 @@ extern "C" fn init(host: *const HostApi) -> i32 {
     hook_config!(host, on_config);
     hook_request!(host, RequestHookPhase::Intercept, "/api/*", on_intercept);
     hook_json!(host, JsonMutateTarget::ResponseBody, "/api/system", on_body);
+    hook_cloudpanel!(host, on_cloudpanel);
     route!(host, HTTP_METHOD_GET, "/plugins/hello", on_route);
     unsafe { log_info(host, "ready") };
     0
@@ -268,6 +283,15 @@ extern "C" fn on_body(ctx: *const JsonMutateContext) -> i32 {
     }
     let Ok(out) = serde_json::to_vec(&value) else { return JSON_MUTATE_UNCHANGED };
     write_json_output(ctx, &out)
+}
+
+extern "C" fn on_cloudpanel(ctx: *const CloudPanelCommandContext) -> i32 {
+    let ctx = unsafe { &*ctx };
+    let command = unsafe { std::slice::from_raw_parts(ctx.command_ptr, ctx.command_len) };
+    if command == b"site:delete" {
+        return write_cloudpanel_cancel(ctx, b"site deletion disabled by my-plugin");
+    }
+    CLOUDPANEL_CONTINUE
 }
 
 extern "C" fn on_route(ctx: *const RouteHandlerContext) -> i32 {
@@ -530,6 +554,66 @@ pub const EVENT_DOCS: &[EventDoc] = &[
         register_example: "hook!(host, PluginEvent::PluginRouteFailed, on_route_failed);",
         handler_example: JSON_EVENT_HANDLER,
     },
+    EventDoc {
+        event: PluginEvent::CloudPanelCommandRequested,
+        name: "cloudpanel.command_requested",
+        summary: "A CloudPanel CLI command was requested.",
+        when: "Before CloudPanel command hooks run.",
+        payload: "JSON: { operation, command, args, status?, duration_ms, error?, hook_handlers }.",
+        cancelable: false,
+        details: "Arguments are redacted before lifecycle payloads are emitted.",
+        use_cases: &["Audit CloudPanel API usage", "Track requested operations"],
+        register_example: "hook!(host, PluginEvent::CloudPanelCommandRequested, on_cloudpanel_requested);",
+        handler_example: JSON_EVENT_HANDLER,
+    },
+    EventDoc {
+        event: PluginEvent::CloudPanelCommandMutated,
+        name: "cloudpanel.command_mutated",
+        summary: "A CloudPanel command hook changed CLI args.",
+        when: "After cloudpanel.command returns CLOUDPANEL_MODIFIED.",
+        payload: "JSON: { operation, command, args, status?, duration_ms, error?, hook_handlers }.",
+        cancelable: false,
+        details: "Fires once per command when one or more CloudPanel hooks mutate the argument JSON.",
+        use_cases: &["Policy rewrites", "Default argument injection"],
+        register_example: "hook!(host, PluginEvent::CloudPanelCommandMutated, on_cloudpanel_mutated);",
+        handler_example: JSON_EVENT_HANDLER,
+    },
+    EventDoc {
+        event: PluginEvent::CloudPanelCommandCancelled,
+        name: "cloudpanel.command_cancelled",
+        summary: "A CloudPanel command hook cancelled execution.",
+        when: "After cloudpanel.command returns CLOUDPANEL_CANCEL.",
+        payload: "JSON: { operation, command, args, status?, duration_ms, error?, hook_handlers }.",
+        cancelable: false,
+        details: "No clpctl process is spawned after cancellation.",
+        use_cases: &["Block destructive commands", "Maintenance windows"],
+        register_example: "hook!(host, PluginEvent::CloudPanelCommandCancelled, on_cloudpanel_cancelled);",
+        handler_example: JSON_EVENT_HANDLER,
+    },
+    EventDoc {
+        event: PluginEvent::CloudPanelCommandSucceeded,
+        name: "cloudpanel.command_succeeded",
+        summary: "A CloudPanel CLI command succeeded.",
+        when: "After clpctl exits successfully.",
+        payload: "JSON: { operation, command, args, status?, duration_ms, error?, hook_handlers }.",
+        cancelable: false,
+        details: "Emitted after successful local CLI execution.",
+        use_cases: &["Command metrics", "Operator audit trails"],
+        register_example: "hook!(host, PluginEvent::CloudPanelCommandSucceeded, on_cloudpanel_succeeded);",
+        handler_example: JSON_EVENT_HANDLER,
+    },
+    EventDoc {
+        event: PluginEvent::CloudPanelCommandFailed,
+        name: "cloudpanel.command_failed",
+        summary: "A CloudPanel CLI command failed.",
+        when: "After clpctl exits with a non-zero status or cannot run.",
+        payload: "JSON: { operation, command, args, status?, duration_ms, error?, hook_handlers }.",
+        cancelable: false,
+        details: "The error field contains the sanitized CLI error returned to the API caller.",
+        use_cases: &["Failure alerts", "CloudPanel troubleshooting"],
+        register_example: "hook!(host, PluginEvent::CloudPanelCommandFailed, on_cloudpanel_failed);",
+        handler_example: JSON_EVENT_HANDLER,
+    },
 ];
 
 pub const CONFIG_HOOK_DOCS: &[HookGuideDoc] = &[HookGuideDoc {
@@ -689,6 +773,32 @@ pub const ROUTE_HOOK_DOCS: &[HookGuideDoc] = &[HookGuideDoc {
     source_path: "application/src/plugins/routes.rs",
 }];
 
+pub const CLOUDPANEL_HOOK_DOCS: &[HookGuideDoc] = &[HookGuideDoc {
+    name: "cloudpanel.command",
+    summary: "Inspect, mutate, or cancel CloudPanel CLI commands before clpctl runs.",
+    when: "After an authenticated CloudPanel API handler builds typed args, before process spawn.",
+    input: "CloudPanelCommandContext with operation, command, and args JSON.",
+    output: "CLOUDPANEL_CONTINUE, CLOUDPANEL_MODIFIED via write_cloudpanel_args, or CLOUDPANEL_CANCEL via write_cloudpanel_cancel.",
+    pipeline: "Hooks run in plugin load order. Mutated args become input for the next CloudPanel hook.",
+    route_matching: "Applies to all /api/system/cloudpanel routes.",
+    details: "Use this hook for policy enforcement and defaults. The command name is read-only; only the JSON args can be changed.",
+    use_cases: &[
+        "Block destructive CloudPanel operations",
+        "Inject default paths",
+        "Rewrite domains for staging",
+    ],
+    register_example: "hook_cloudpanel!(host, on_cloudpanel_command);",
+    handler_example: r##"extern "C" fn on_cloudpanel_command(ctx: *const CloudPanelCommandContext) -> i32 {
+    let ctx = unsafe { &*ctx };
+    let command = unsafe { std::slice::from_raw_parts(ctx.command_ptr, ctx.command_len) };
+    if command == b"site:delete" {
+        return write_cloudpanel_cancel(ctx, b"site deletion blocked");
+    }
+    CLOUDPANEL_CONTINUE
+}"##,
+    source_path: "application/src/controllers/system/cloudpanel.rs",
+}];
+
 pub const MACROS: &[(&str, &str)] = &[
     (
         "declare_plugin!",
@@ -710,6 +820,10 @@ pub const MACROS: &[(&str, &str)] = &[
     (
         "hook_json!",
         "Registers a JSON mutation handler for a route prefix during init.",
+    ),
+    (
+        "hook_cloudpanel!",
+        "Registers a CloudPanel command hook during init.",
     ),
 ];
 
@@ -741,6 +855,7 @@ pub const TERMINOLOGY: &str = r#"FeatherFly plugin vocabulary — read this befo
 | **Request hook** | Runs before HTTP handlers — `request.intercept` (outer) or `middleware.inject` (inner). |
 | **Plugin route** | A handler registered with `route!` that serves a new HTTP endpoint. |
 | **JSON mutation hook** | A hook that receives JSON bytes, may rewrite them, and returns output for HTTP responses. |
+| **CloudPanel command hook** | A hook that receives CloudPanel operation metadata and CLI args JSON, then continues, rewrites args, or cancels. |
 | **Target** | What a hook listens to — an event name, config pipeline, route prefix, or JSON target. |
 | **Pipeline** | Ordered chain of hooks for one target. Each hook sees the previous hook's output. |
 | **Mixin** | FeatherFly's model for JSON hooks: multiple plugins stack transformations on the same response, like Minecraft mixins layering behavior. |
@@ -769,6 +884,8 @@ Daemon startup
             │
             ├─ plugin routes (route.register)
             │
+            ├─ CloudPanel API ──► cloudpanel.command ──► clpctl
+            │
             └─ JSON response for /api/*
                     ├─ json.response pipeline
                     └─ json.actions pipeline
@@ -791,10 +908,11 @@ This is intentionally **composable**: small plugins each do one job (add a field
 |-----------|--------------|--------------------|-------------|
 | Lifecycle event | Fixed daemon milestones | Yes (same event only) | Startup banners, config validation |
 | JSON mutation | Every matching HTTP JSON response | No — always runs in pipeline | Response fields, panel actions |
+| CloudPanel command | Before clpctl process spawn | Yes — cancels command execution | Policy checks, defaults |
 
 ### Versioning
 
-Plugin API **v4** (current) exposes lifecycle events, config mutation, request hooks, plugin routes, and JSON mutation. Future hooks will bump the API version so old plugins keep loading safely when new hook types appear."#;
+Plugin API **v7** (current) exposes lifecycle events, config mutation, request hooks, plugin routes, JSON mutation, and CloudPanel command hooks. Future hooks will bump the API version so old plugins keep loading safely when new hook types appear."#;
 
 pub const PLANNED_HOOKS: &[PlannedHookDoc] = &[
     PlannedHookDoc {
@@ -850,6 +968,12 @@ pub const PLANNED_HOOKS: &[PlannedHookDoc] = &[
         status: "available",
         summary: "Insert Axum middleware layers from plugins.",
         mixin_role: "Cross-cutting concerns (tracing, CORS overrides) as plugins.",
+    },
+    PlannedHookDoc {
+        name: "cloudpanel.command",
+        status: "available",
+        summary: "Inspect, mutate, or cancel CloudPanel CLI command args.",
+        mixin_role: "Mixin on CloudPanel operations — policy, defaults, audit.",
     },
 ];
 

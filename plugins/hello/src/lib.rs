@@ -1,9 +1,10 @@
 use featherfly_plugin_sdk::{
-    declare_plugin, hook, hook_config, hook_json, hook_request, log_info, route,
-    write_json_output, write_request_response, write_route_response, write_yaml_output,
-    ConfigMutateContext, EventContext, HookResult, HostApi, JsonMutateContext, JsonMutateTarget,
-    PluginEvent, RequestHookContext, RequestHookPhase, RouteHandlerContext, CONFIG_MUTATE_UNCHANGED,
-    HTTP_METHOD_GET, JSON_MUTATE_UNCHANGED, REQUEST_CONTINUE,
+    CLOUDPANEL_CONTINUE, CloudPanelCommandContext, CONFIG_MUTATE_UNCHANGED, ConfigMutateContext,
+    EventContext, HTTP_METHOD_GET, HookResult, HostApi, JSON_MUTATE_UNCHANGED, JsonMutateContext,
+    JsonMutateTarget, PluginEvent, REQUEST_CONTINUE, RequestHookContext, RequestHookPhase,
+    RouteHandlerContext, declare_plugin, hook, hook_cloudpanel, hook_config, hook_json,
+    hook_request, log_info, route, write_cloudpanel_cancel, write_json_output,
+    write_request_response, write_route_response, write_yaml_output,
 };
 
 extern "C" fn init(host: *const HostApi) -> i32 {
@@ -37,6 +38,7 @@ extern "C" fn init(host: *const HostApi) -> i32 {
         "/api/system",
         on_system_actions
     );
+    hook_cloudpanel!(host, on_cloudpanel_command);
     route!(
         host,
         HTTP_METHOD_GET,
@@ -119,6 +121,20 @@ extern "C" fn on_hello_route(ctx: *const RouteHandlerContext) -> i32 {
     let ctx = unsafe { &*ctx };
     let body = br#"{"plugin":"hello","api_version":6,"route":"GET /plugins/hello"}"#;
     write_route_response(ctx, 200, body)
+}
+
+extern "C" fn on_cloudpanel_command(ctx: *const CloudPanelCommandContext) -> i32 {
+    let ctx = unsafe { &*ctx };
+    let command = unsafe { std::slice::from_raw_parts(ctx.command_ptr, ctx.command_len) };
+    let args = unsafe { std::slice::from_raw_parts(ctx.args_json_in_ptr, ctx.args_json_in_len) };
+
+    if command == b"vhost-template:view" && args.windows(b"__hello_block__".len()).any(|window| {
+        window == b"__hello_block__"
+    }) {
+        return write_cloudpanel_cancel(ctx, b"hello plugin blocked demo template lookup");
+    }
+
+    CLOUDPANEL_CONTINUE
 }
 
 extern "C" fn on_system_body(ctx: *const JsonMutateContext) -> i32 {

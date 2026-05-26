@@ -7,8 +7,8 @@ pub mod schema;
 use anyhow::Context;
 use events::{EmitOutcome, EventBus, RegisteredRoute, RequestHookOutcome, SharedEventBus};
 use featherfly_plugin_sdk::{
-    ConfigMutateCallback, FEATHERFLY_PLUGIN_API_VERSION, HostApi, PluginEntry, PluginEvent,
-    RequestHookCallback, RequestHookPhase,
+    CloudPanelCommandCallback, ConfigMutateCallback, FEATHERFLY_PLUGIN_API_VERSION, HostApi,
+    PluginEntry, PluginEvent, RequestHookCallback, RequestHookPhase,
 };
 use libloading::Library;
 use serde::Serialize;
@@ -140,6 +140,31 @@ impl PluginRegistry {
                 status: 200,
                 body: Vec::new(),
             })
+    }
+
+    pub fn run_cloudpanel_hooks(
+        &self,
+        operation: &str,
+        command: &str,
+        args_json: &[u8],
+    ) -> events::CloudPanelHookOutcome {
+        self.event_bus
+            .lock()
+            .map(|bus| bus.run_cloudpanel_hooks(operation, command, args_json))
+            .unwrap_or_else(|_| events::CloudPanelHookOutcome {
+                cancelled: false,
+                mutated: false,
+                handlers_run: 0,
+                args_json: args_json.to_vec(),
+                cancel_reason: String::new(),
+            })
+    }
+
+    pub fn cloudpanel_hook_count(&self) -> usize {
+        self.event_bus
+            .lock()
+            .map(|bus| bus.cloudpanel_hook_count())
+            .unwrap_or(0)
     }
 
     pub fn config_hook_count(&self) -> usize {
@@ -391,6 +416,7 @@ fn build_host_api(hook_state: &HookRegistration) -> HostApi {
         register_config_hook: Some(register_config_hook_trampoline),
         register_request_hook: Some(register_request_hook_trampoline),
         register_route: Some(register_route_trampoline),
+        register_cloudpanel_hook: Some(register_cloudpanel_hook_trampoline),
         log_info: Some(log_info_trampoline),
     }
 }
@@ -512,6 +538,23 @@ extern "C" fn register_route_trampoline(
             -4
         }
     }
+}
+
+extern "C" fn register_cloudpanel_hook_trampoline(
+    callback: CloudPanelCommandCallback,
+    user_data: *mut core::ffi::c_void,
+) -> i32 {
+    if user_data.is_null() {
+        return -1;
+    }
+
+    let registration = unsafe { &*(user_data.cast::<HookRegistration>()) };
+    let Ok(mut bus) = registration.bus.lock() else {
+        return -2;
+    };
+
+    bus.register_cloudpanel_hook(registration.plugin_name.clone(), callback);
+    0
 }
 
 extern "C" fn log_info_trampoline(message_ptr: *const u8, message_len: usize) {

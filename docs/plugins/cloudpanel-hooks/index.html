@@ -3,25 +3,25 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Plugin development vocabulary — hooks, mixins, pipelines, load order.">
+  <meta name="description" content="CloudPanel command hooks — mutate or cancel clpctl operations before execution.">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#000000">
   <meta name="author" content="FeatherFly">
-  <link rel="canonical" href="https://mythicaltld.github.io/featherfly/plugins/terminology.html">
+  <link rel="canonical" href="https://mythicaltld.github.io/featherfly/plugins/cloudpanel-hooks/index.html">
   <link rel="icon" type="image/png" href="https://github.com/featherpanel-com.png">
   <link rel="apple-touch-icon" href="https://github.com/featherpanel-com.png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="FeatherFly">
-  <meta property="og:title" content="Terminology · FeatherFly">
-  <meta property="og:description" content="Plugin development vocabulary — hooks, mixins, pipelines, load order.">
-  <meta property="og:url" content="https://mythicaltld.github.io/featherfly/plugins/terminology.html">
+  <meta property="og:title" content="CloudPanel hooks · FeatherFly">
+  <meta property="og:description" content="CloudPanel command hooks — mutate or cancel clpctl operations before execution.">
+  <meta property="og:url" content="https://mythicaltld.github.io/featherfly/plugins/cloudpanel-hooks/index.html">
   <meta property="og:image" content="https://github.com/featherpanel-com.png">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Terminology · FeatherFly">
-  <meta name="twitter:description" content="Plugin development vocabulary — hooks, mixins, pipelines, load order.">
+  <meta name="twitter:title" content="CloudPanel hooks · FeatherFly">
+  <meta name="twitter:description" content="CloudPanel command hooks — mutate or cancel clpctl operations before execution.">
   <meta name="twitter:image" content="https://github.com/featherpanel-com.png">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <title>Terminology · FeatherFly</title>
+  <title>CloudPanel hooks · FeatherFly</title>
   <script src="https://cdn.tailwindcss.com?v=dev"></script>
   <style>
     :root {
@@ -104,7 +104,7 @@
         <input id="doc-search" type="search" placeholder="Search docs…" class="search-input" autocomplete="off" aria-label="Search documentation">
         <div id="search-results" class="search-results hidden"></div>
       </div>
-      <nav class="p-2 pb-8" aria-label="Documentation"><div class="sidebar-group">Start</div><a href="../index.html" class="sidebar-link">Home</a><div class="sidebar-group">Plugins</div><a href="index.html" class="sidebar-link">Introduction</a><a href="getting-started.html" class="sidebar-link">Getting started</a><a href="overview.html" class="sidebar-link">Overview</a><a href="terminology.html" class="sidebar-link sidebar-link-active">Terminology</a><a href="architecture.html" class="sidebar-link">Architecture</a><a href="hooks-roadmap.html" class="sidebar-link">Hooks roadmap</a><a href="events/index.html" class="sidebar-link">Events</a><a href="config-hooks/index.html" class="sidebar-link">Config hooks</a><a href="config-hooks/mutate.html" class="sidebar-sublink">config.mutate</a><a href="request-hooks/index.html" class="sidebar-link">Request hooks</a><a href="request-hooks/intercept.html" class="sidebar-sublink">request.intercept</a><a href="request-hooks/middleware.html" class="sidebar-sublink">middleware.inject</a><a href="routes/index.html" class="sidebar-link">Plugin routes</a><a href="routes/register.html" class="sidebar-sublink">route.register</a><a href="json-hooks/index.html" class="sidebar-link">JSON hooks</a><a href="json-hooks/response-body.html" class="sidebar-sublink">json.response</a><a href="json-hooks/response-actions.html" class="sidebar-sublink">json.actions</a><a href="host-api.html" class="sidebar-link">Host API</a><a href="macros.html" class="sidebar-link">Macros</a><a href="return-codes.html" class="sidebar-link">Return codes</a><a href="source-tree.html" class="sidebar-link">Source tree</a><a href="example.html" class="sidebar-link">Full example</a><div class="sidebar-group">Reference</div><a href="../plugins-reference.txt" class="sidebar-link">Plugin reference</a></nav>
+      <nav class="p-2 pb-8" aria-label="Documentation"><div class="sidebar-group">Start</div><a href="../index.html" class="sidebar-link">Home</a><div class="sidebar-group">Plugins</div><a href="index.html" class="sidebar-link">Introduction</a><a href="getting-started.html" class="sidebar-link">Getting started</a><a href="overview.html" class="sidebar-link">Overview</a><a href="terminology.html" class="sidebar-link">Terminology</a><a href="architecture.html" class="sidebar-link">Architecture</a><a href="hooks-roadmap.html" class="sidebar-link">Hooks roadmap</a><a href="events/index.html" class="sidebar-link">Events</a><a href="config-hooks/index.html" class="sidebar-link">Config hooks</a><a href="config-hooks/mutate.html" class="sidebar-sublink">config.mutate</a><a href="request-hooks/index.html" class="sidebar-link">Request hooks</a><a href="request-hooks/intercept.html" class="sidebar-sublink">request.intercept</a><a href="request-hooks/middleware.html" class="sidebar-sublink">middleware.inject</a><a href="routes/index.html" class="sidebar-link">Plugin routes</a><a href="routes/register.html" class="sidebar-sublink">route.register</a><a href="json-hooks/index.html" class="sidebar-link">JSON hooks</a><a href="json-hooks/response-body.html" class="sidebar-sublink">json.response</a><a href="json-hooks/response-actions.html" class="sidebar-sublink">json.actions</a><a href="host-api.html" class="sidebar-link">Host API</a><a href="macros.html" class="sidebar-link">Macros</a><a href="return-codes.html" class="sidebar-link">Return codes</a><a href="source-tree.html" class="sidebar-link">Source tree</a><a href="example.html" class="sidebar-link">Full example</a><div class="sidebar-group">Reference</div><a href="../plugins-reference.txt" class="sidebar-link">Plugin reference</a></nav>
     </aside>
     <div id="sidebar-backdrop" class="fixed inset-0 z-30 bg-black/80 hidden lg:hidden"></div>
     <div class="flex-1 flex flex-col min-w-0 lg:ml-72">
@@ -116,29 +116,10 @@
         </div>
       </header>
       <main class="flex-1 px-4 py-8 sm:px-10 max-w-4xl">
-        <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../index.html">Home</a> <span>/</span><a href="index.html">Plugins</a> <span>/</span><span>Terminology</span></nav>
-        
-        <article class="prose-docs"><h1>Terminology</h1><p class="lead">Shared vocabulary for FeatherFly plugin development.</p>
-<p>FeatherFly plugin vocabulary — read this before writing hooks.</p>
-<table><thead><tr><th>Term</th><th>Meaning</th></tr></thead><tbody>
-<tr><td><strong>Plugin</strong></td><td>A native <code>.so</code> shared library loaded by the daemon at startup.</td></tr>
-<tr><td><strong>Host</strong></td><td>The running FeatherFly daemon. Passes <code>HostApi</code> to your <code>init</code>.</td></tr>
-<tr><td><strong>Hook</strong></td><td>A callback your plugin registers during <code>init</code>.</td></tr>
-<tr><td><strong>Event</strong></td><td>A lifecycle hook fired at a fixed point (startup, shutdown, config load).</td></tr>
-<tr><td><strong>Config mutation hook</strong></td><td>Rewrites raw config YAML bytes before settings are applied (<code>config.mutate</code>).</td></tr>
-<tr><td><strong>Request hook</strong></td><td>Runs before HTTP handlers — <code>request.intercept</code> (outer) or <code>middleware.inject</code> (inner).</td></tr>
-<tr><td><strong>Plugin route</strong></td><td>A handler registered with <code>route!</code> that serves a new HTTP endpoint.</td></tr>
-<tr><td><strong>JSON mutation hook</strong></td><td>A hook that receives JSON bytes, may rewrite them, and returns output for HTTP responses.</td></tr>
-<tr><td><strong>CloudPanel command hook</strong></td><td>A hook that receives CloudPanel operation metadata and CLI args JSON, then continues, rewrites args, or cancels.</td></tr>
-<tr><td><strong>Target</strong></td><td>What a hook listens to — an event name, config pipeline, route prefix, or JSON target.</td></tr>
-<tr><td><strong>Pipeline</strong></td><td>Ordered chain of hooks for one target. Each hook sees the previous hook's output.</td></tr>
-<tr><td><strong>Mixin</strong></td><td>FeatherFly's model for JSON hooks: multiple plugins stack transformations on the same response, like Minecraft mixins layering behavior.</td></tr>
-<tr><td><strong>Load order</strong></td><td>Alphabetical by <code>.so</code> filename in the plugins directory. Determines pipeline order.</td></tr>
-<tr><td><strong>Cancel</strong></td><td>Lifecycle hooks may call <code>HookResult::cancel()</code> to skip remaining handlers for that event.</td></tr>
-<tr><td><strong>API version</strong></td><td>Integer in <code>PluginEntry</code>. Must match <code>FEATHERFLY_PLUGIN_API_VERSION</code> or the plugin is skipped.</td></tr>
-<tr><td><strong>Action</strong></td><td>A panel step object <code>{ id, label, step }</code> returned in API responses for follow-up work.</td></tr>
-</tbody></table>
-</article>
+        <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../index.html">Home</a> <span>/</span><a href="index.html">Plugins</a> <span>/</span><span>CloudPanel hooks</span></nav>
+        <div class="source-bar"><span class="source-bar-label">Source</span> <a href="https://github.com/MythicalLTD/featherfly/blob/main/application/src/controllers/system/cloudpanel.rs" class="source-link" target="_blank" rel="noopener">CloudPanel wrapper ↗</a></div>
+        <article class="prose-docs"><h1>CloudPanel command hooks</h1><p class="lead">Register during init — see each page for examples.</p>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6"><a href="command.html" class="doc-card"><strong class="block mb-1 text-white"><code>cloudpanel.command</code></strong><span class="text-sm text-[#888888]">Inspect, mutate, or cancel CloudPanel CLI commands before clpctl runs.</span></a></div></article>
       </main>
       <footer class="border-t border-[#1a1a1a] py-6 px-4 text-center text-xs text-[#555555]">
         <img src="https://github.com/featherpanel-com.png" alt="" width="20" height="20" class="inline-block rounded-full mr-2 opacity-60">

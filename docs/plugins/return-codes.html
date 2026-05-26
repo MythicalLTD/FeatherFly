@@ -152,6 +152,13 @@
 <tr><td><code>JSON_MUTATE_UNCHANGED</code> (1)</td><td>Keep prior JSON</td></tr>
 <tr><td>negative</td><td>Error; prior JSON kept</td></tr>
 </tbody></table>
+<h2>CloudPanel command hooks</h2>
+<table><thead><tr><th>Code</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>CLOUDPANEL_CONTINUE</code> (0)</td><td>Keep current CLI args and continue</td></tr>
+<tr><td><code>CLOUDPANEL_MODIFIED</code> (1)</td><td>Output written via <code>write_cloudpanel_args</code></td></tr>
+<tr><td><code>CLOUDPANEL_CANCEL</code> (2)</td><td>Cancel the command; optional reason from <code>write_cloudpanel_cancel</code></td></tr>
+<tr><td>negative</td><td>Error; current args kept</td></tr>
+</tbody></table>
 </article>
       </main>
       <footer class="border-t border-[#1a1a1a] py-6 px-4 text-center text-xs text-[#555555]">

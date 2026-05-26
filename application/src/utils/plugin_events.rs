@@ -94,6 +94,19 @@ pub struct NodeIdentityPayload<'a> {
     pub token_id: &'a str,
 }
 
+#[derive(Serialize)]
+pub struct CloudPanelCommandPayload<'a> {
+    pub operation: &'a str,
+    pub command: &'a str,
+    pub args: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<i32>,
+    pub duration_ms: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<&'a str>,
+    pub hook_handlers: usize,
+}
+
 pub fn emit_json(registry: &PluginRegistry, event: PluginEvent, payload: &impl Serialize) {
     if !registry.has_event_hooks(event) {
         return;
@@ -147,8 +160,18 @@ mod tests {
                 token_id: "token",
             })
             .unwrap(),
+            serde_json::to_value(CloudPanelCommandPayload {
+                operation: "list_users",
+                command: "user:list",
+                args: Vec::new(),
+                status: Some(0),
+                duration_ms: 1,
+                error: None,
+                hook_handlers: 0,
+            })
+            .unwrap(),
         ];
 
-        assert_eq!(values.len(), 3);
+        assert_eq!(values.len(), 4);
     }
 }

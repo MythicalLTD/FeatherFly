@@ -127,6 +127,7 @@
 <li>register_request_hook — register request.intercept or middleware.inject</li>
 <li>register_route — register a plugin HTTP route (GET/POST/PUT/PATCH/DELETE)</li>
 <li>register_json_hook — register a JSON mutation callback</li>
+<li>register_cloudpanel_hook — inspect, mutate, or cancel CloudPanel CLI commands</li>
 <li>log_info — write an info line to the daemon log</li>
 </ul>
 <p>Register hooks only inside init. Callback pointers are kept until shutdown.</p>
@@ -138,6 +139,7 @@
 <li>REQUEST_CONTINUE (0) — pass request to next hook/handler</li>
 <li>REQUEST_RESPOND (1) — short-circuit with write_request_response</li>
 <li>ROUTE_OK (0) — route handled via write_route_response</li>
+<li>CLOUDPANEL_CONTINUE / CLOUDPANEL_MODIFIED / CLOUDPANEL_CANCEL — continue, replace args, or block a CloudPanel command</li>
 <li>Negative — error; input is kept</li>
 </ul>
 
@@ -147,6 +149,7 @@
 <tr><td><code>write_request_response</code></td><td>request.intercept / middleware.inject</td></tr>
 <tr><td><code>write_route_response</code></td><td>route.register</td></tr>
 <tr><td><code>write_json_output</code></td><td>json.response / json.actions</td></tr>
+<tr><td><code>write_cloudpanel_args</code> / <code>write_cloudpanel_cancel</code></td><td>cloudpanel.command</td></tr>
 </tbody></table>
 <p>See <a href="macros.html">macros</a> and <a href="return-codes.html">return codes</a>.</p>
 <h2>Runtime inspection</h2>

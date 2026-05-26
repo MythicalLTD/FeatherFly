@@ -1,8 +1,9 @@
 use crate::html::{self, PageContext, PageMeta};
 use featherfly_plugin_sdk::metadata::{
-    ARCHITECTURE, BUILD_AND_INSTALL, CONFIG_HOOK_DOCS, EVENT_DOCS, FULL_PLUGIN_EXAMPLE, HOST_API,
-    JSON_HOOK_DOCS, LIFECYCLE, MACROS, OVERVIEW, PLANNED_HOOKS, REQUEST_HOOK_DOCS,
-    REQUEST_PIPELINE, RETURN_CODES, ROUTE_HOOK_DOCS, SOURCE_TREE, TERMINOLOGY, plugin_api_version,
+    ARCHITECTURE, BUILD_AND_INSTALL, CLOUDPANEL_HOOK_DOCS, CONFIG_HOOK_DOCS, EVENT_DOCS,
+    FULL_PLUGIN_EXAMPLE, HOST_API, JSON_HOOK_DOCS, LIFECYCLE, MACROS, OVERVIEW, PLANNED_HOOKS,
+    REQUEST_HOOK_DOCS, REQUEST_PIPELINE, RETURN_CODES, ROUTE_HOOK_DOCS, SOURCE_TREE, TERMINOLOGY,
+    plugin_api_version,
 };
 use std::path::Path;
 
@@ -13,6 +14,7 @@ pub fn generate_plugin_docs(output: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(output.join("config-hooks"))?;
     std::fs::create_dir_all(output.join("request-hooks"))?;
     std::fs::create_dir_all(output.join("routes"))?;
+    std::fs::create_dir_all(output.join("cloudpanel-hooks"))?;
 
     write_page(
         &output.join("index.html"),
@@ -73,7 +75,7 @@ pub fn generate_plugin_docs(output: &Path) -> std::io::Result<()> {
         "Hooks roadmap",
         PageContext::plugins("hooks-roadmap"),
         PageMeta::new(
-            "All FeatherFly plugin hooks — available in API v4.",
+            "All FeatherFly plugin hooks — available in API v7.",
             "plugins/hooks-roadmap.html",
         ),
         &hooks_roadmap_page(),
@@ -185,6 +187,34 @@ pub fn generate_plugin_docs(output: &Path) -> std::io::Result<()> {
     }
 
     write_page(
+        &output.join("cloudpanel-hooks/index.html"),
+        "CloudPanel hooks",
+        PageContext::plugins("cloudpanel-hooks"),
+        PageMeta::new(
+            "CloudPanel command hooks — mutate or cancel clpctl operations before execution.",
+            "plugins/cloudpanel-hooks/index.html",
+        )
+        .with_source(
+            "CloudPanel wrapper",
+            "application/src/controllers/system/cloudpanel.rs",
+        ),
+        &cloudpanel_hooks_index_page(),
+    )?;
+    for doc in CLOUDPANEL_HOOK_DOCS {
+        write_page(
+            &output.join("cloudpanel-hooks/command.html"),
+            doc.name,
+            PageContext::plugins("cloudpanel-hooks"),
+            PageMeta::new(
+                format!("{} — CloudPanel command hook", doc.name),
+                "plugins/cloudpanel-hooks/command.html",
+            )
+            .with_source("Implementation", doc.source_path),
+            &hook_guide_page(doc),
+        )?;
+    }
+
+    write_page(
         &output.join("json-hooks/index.html"),
         "JSON hooks",
         PageContext::plugin_json_hooks("json-hooks"),
@@ -261,7 +291,7 @@ pub fn generate_plugin_docs(output: &Path) -> std::io::Result<()> {
         "Full example",
         PageContext::plugins("example"),
         PageMeta::new(
-            "Complete FeatherFly v4 plugin — config, request, route, and JSON hooks.",
+            "Complete FeatherFly v7 plugin — config, request, route, JSON, and CloudPanel hooks.",
             "plugins/example.html",
         )
         .with_source("Hello plugin", "plugins/hello/src/lib.rs"),
@@ -314,7 +344,7 @@ fn event_active_id(name: &str) -> &'static str {
 fn index_page() -> String {
     format!(
         "{header}
-<p>Plugin API version <code>{version}</code>. All hooks below ship in v4.</p>
+<p>Plugin API version <code>{version}</code>. All hooks below ship in v7.</p>
 {cards}
 <h2>Quick links</h2>
 <ul>
@@ -360,6 +390,11 @@ fn index_page() -> String {
                 "Register new HTTP endpoints.",
             ),
             (
+                "cloudpanel-hooks/index.html",
+                "CloudPanel hooks",
+                "Mutate or cancel clpctl operations.",
+            ),
+            (
                 "json-hooks/index.html",
                 "JSON hooks",
                 "Modify API responses before clients see them.",
@@ -373,7 +408,7 @@ fn index_page() -> String {
             (
                 "example.html",
                 "Full example",
-                "v4 plugin with every hook type.",
+                "v7 plugin with every hook type.",
             ),
         ]),
         sdk = html::github_source("featherfly-plugin-sdk/src/lib.rs", "Plugin SDK source"),
@@ -425,7 +460,7 @@ fn hooks_roadmap_page() -> String {
 
     format!(
         "{header}
-<p>Plugin API v{version}. All hooks listed as <code>available</code> ship today in v4.</p>
+<p>Plugin API v{version}. All hooks listed as <code>available</code> ship today in v7.</p>
 <table><thead><tr><th>Hook</th><th>Status</th><th>Summary</th><th>Mixin role</th></tr></thead><tbody>{rows}</tbody></table>
 <p>Documentation: <a href=\"config-hooks/index.html\">config</a> · <a href=\"request-hooks/index.html\">request</a> · <a href=\"routes/index.html\">routes</a> · <a href=\"json-hooks/index.html\">JSON</a> · <a href=\"events/index.html\">lifecycle</a></p>",
         header = html::page_header(
@@ -508,6 +543,14 @@ fn request_hooks_index_page() -> String {
 
 fn routes_index_page() -> String {
     hook_index(ROUTE_HOOK_DOCS, "routes", "Plugin HTTP routes")
+}
+
+fn cloudpanel_hooks_index_page() -> String {
+    hook_index(
+        CLOUDPANEL_HOOK_DOCS,
+        "cloudpanel-hooks",
+        "CloudPanel command hooks",
+    )
 }
 
 fn hook_index(
@@ -688,6 +731,7 @@ fn host_api_page() -> String {
 <tr><td><code>write_request_response</code></td><td>request.intercept / middleware.inject</td></tr>
 <tr><td><code>write_route_response</code></td><td>route.register</td></tr>
 <tr><td><code>write_json_output</code></td><td>json.response / json.actions</td></tr>
+<tr><td><code>write_cloudpanel_args</code> / <code>write_cloudpanel_cancel</code></td><td>cloudpanel.command</td></tr>
 </tbody></table>
 <p>See <a href=\"macros.html\">macros</a> and <a href=\"return-codes.html\">return codes</a>.</p>
 <h2>Runtime inspection</h2>
@@ -752,7 +796,7 @@ fn getting_started_page() -> String {
         "{header}
 {build}
 <h2>Reference plugin</h2>
-<p>After install, inspect <code>plugins/hello/src/lib.rs</code> — it registers every v4 hook type. {hello}</p>",
+<p>After install, inspect <code>plugins/hello/src/lib.rs</code> — it registers every v7 hook type. {hello}</p>",
         header = html::page_header(
             "Getting started",
             "Create, build, and install your first plugin.",
@@ -765,7 +809,7 @@ fn getting_started_page() -> String {
 fn example_page() -> String {
     format!(
         "{header}
-<p>Complete v4 plugin with config, request, route, and JSON hooks. Production source: {hello}</p>
+<p>Complete v7 plugin with config, request, route, JSON, and CloudPanel hooks. Production source: {hello}</p>
 <pre><code>{example}</code></pre>",
         header = html::page_header("Full plugin example", "Every hook type in one plugin.",),
         hello = html::github_source("plugins/hello/src/lib.rs", "plugins/hello"),

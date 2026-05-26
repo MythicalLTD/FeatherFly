@@ -1,5 +1,6 @@
 use featherfly_plugin_sdk::{
-    CONFIG_MUTATE_MODIFIED, ConfigMutateCallback, EventContext, HookCallback, JsonMutateCallback,
+    CLOUDPANEL_CANCEL, CLOUDPANEL_MODIFIED, CONFIG_MUTATE_MODIFIED, CloudPanelCommandCallback,
+    CloudPanelCommandContext, ConfigMutateCallback, EventContext, HookCallback, JsonMutateCallback,
     PluginEvent, REQUEST_RESPOND, RequestHookCallback, RequestHookPhase, RouteHandlerCallback,
 };
 use std::collections::HashMap;
@@ -11,6 +12,7 @@ pub struct EventBus {
     json_hooks: Vec<RegisteredJsonHook>,
     config_hooks: Vec<RegisteredConfigHook>,
     request_hooks: Vec<RegisteredRequestHook>,
+    cloudpanel_hooks: Vec<RegisteredCloudPanelHook>,
     routes: Vec<RegisteredRoute>,
 }
 
@@ -43,6 +45,12 @@ struct RegisteredRequestHook {
 }
 
 #[derive(Debug, Clone)]
+struct RegisteredCloudPanelHook {
+    _plugin: String,
+    callback: CloudPanelCommandCallback,
+}
+
+#[derive(Debug, Clone)]
 pub struct RegisteredRoute {
     pub plugin: String,
     pub method: u32,
@@ -61,6 +69,15 @@ pub struct RequestHookOutcome {
     pub respond: bool,
     pub status: u16,
     pub body: Vec<u8>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CloudPanelHookOutcome {
+    pub cancelled: bool,
+    pub mutated: bool,
+    pub handlers_run: usize,
+    pub args_json: Vec<u8>,
+    pub cancel_reason: String,
 }
 
 impl EventBus {
@@ -113,6 +130,17 @@ impl EventBus {
             _plugin: plugin_name.into(),
             phase,
             route_pattern: route_pattern.into(),
+            callback,
+        });
+    }
+
+    pub fn register_cloudpanel_hook(
+        &mut self,
+        plugin_name: impl Into<String>,
+        callback: CloudPanelCommandCallback,
+    ) {
+        self.cloudpanel_hooks.push(RegisteredCloudPanelHook {
+            _plugin: plugin_name.into(),
             callback,
         });
     }
@@ -259,6 +287,71 @@ impl EventBus {
         }
     }
 
+    pub fn run_cloudpanel_hooks(
+        &self,
+        operation: &str,
+        command: &str,
+        args_json: &[u8],
+    ) -> CloudPanelHookOutcome {
+        let mut current = args_json.to_vec();
+        let mut outcome = CloudPanelHookOutcome {
+            cancelled: false,
+            mutated: false,
+            handlers_run: 0,
+            args_json: current.clone(),
+            cancel_reason: String::new(),
+        };
+
+        for hook in &self.cloudpanel_hooks {
+            outcome.handlers_run += 1;
+            let mut output = vec![0_u8; current.len().max(4096).saturating_mul(2)];
+            let mut output_len = 0_usize;
+            let mut cancel_reason = vec![0_u8; 1024];
+            let mut cancel_reason_len = 0_usize;
+
+            let ctx = CloudPanelCommandContext {
+                operation_ptr: operation.as_ptr(),
+                operation_len: operation.len(),
+                command_ptr: command.as_ptr(),
+                command_len: command.len(),
+                args_json_in_ptr: current.as_ptr(),
+                args_json_in_len: current.len(),
+                args_json_out_ptr: output.as_mut_ptr(),
+                args_json_out_capacity: output.len(),
+                args_json_out_len: &mut output_len,
+                cancel_reason_ptr: cancel_reason.as_mut_ptr(),
+                cancel_reason_capacity: cancel_reason.len(),
+                cancel_reason_len: &mut cancel_reason_len,
+            };
+
+            match (hook.callback)(&ctx) {
+                CLOUDPANEL_MODIFIED if output_len > 0 => {
+                    current = output[..output_len].to_vec();
+                    outcome.mutated = true;
+                }
+                CLOUDPANEL_CANCEL => {
+                    outcome.cancelled = true;
+                    outcome.cancel_reason =
+                        String::from_utf8_lossy(&cancel_reason[..cancel_reason_len]).into_owned();
+                    outcome.args_json = current;
+                    return outcome;
+                }
+                status if status < 0 => {
+                    tracing::warn!(
+                        status,
+                        operation,
+                        command,
+                        "CloudPanel plugin hook returned an error"
+                    );
+                }
+                _ => {}
+            }
+        }
+
+        outcome.args_json = current;
+        outcome
+    }
+
     pub fn mutate_json(
         &self,
         target: featherfly_plugin_sdk::JsonMutateTarget,
@@ -303,11 +396,16 @@ impl EventBus {
             + self.config_hooks.len()
             + self.request_hooks.len()
             + self.json_hooks.len()
+            + self.cloudpanel_hooks.len()
             + self.routes.len()
     }
 
     pub fn config_hook_count(&self) -> usize {
         self.config_hooks.len()
+    }
+
+    pub fn cloudpanel_hook_count(&self) -> usize {
+        self.cloudpanel_hooks.len()
     }
 
     fn lifecycle_hook_count(&self) -> usize {
@@ -346,7 +444,10 @@ pub fn code_to_method(code: u32) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use featherfly_plugin_sdk::{EventContext, HookResult, PluginEvent};
+    use featherfly_plugin_sdk::{
+        CLOUDPANEL_CONTINUE, CloudPanelCommandContext, EventContext, HookResult, PluginEvent,
+        write_cloudpanel_args, write_cloudpanel_cancel,
+    };
 
     extern "C" fn cancel_hook(_ctx: *const EventContext) -> HookResult {
         HookResult::cancel()
@@ -354,6 +455,23 @@ mod tests {
 
     extern "C" fn continue_hook(_ctx: *const EventContext) -> HookResult {
         HookResult::r#continue()
+    }
+
+    extern "C" fn mutate_cloudpanel(ctx: *const CloudPanelCommandContext) -> i32 {
+        let ctx = unsafe { &*ctx };
+        write_cloudpanel_args(
+            ctx,
+            br#"[{"name":"file","value":"/tmp/mutated.sql.gz","sensitive":false}]"#,
+        )
+    }
+
+    extern "C" fn cancel_cloudpanel(ctx: *const CloudPanelCommandContext) -> i32 {
+        let ctx = unsafe { &*ctx };
+        write_cloudpanel_cancel(ctx, b"blocked")
+    }
+
+    extern "C" fn continue_cloudpanel(_ctx: *const CloudPanelCommandContext) -> i32 {
+        CLOUDPANEL_CONTINUE
     }
 
     #[test]
@@ -378,5 +496,35 @@ mod tests {
             assert_eq!(outcome.handlers_run, 1, "event {}", doc.name);
             assert!(!outcome.cancelled);
         }
+    }
+
+    #[test]
+    fn cloudpanel_hooks_can_mutate_args() {
+        let mut bus = EventBus::new();
+        bus.register_cloudpanel_hook("mutator", mutate_cloudpanel);
+
+        let outcome = bus.run_cloudpanel_hooks(
+            "export_database",
+            "db:export",
+            br#"[{"name":"file","value":"/tmp/original.sql.gz","sensitive":false}]"#,
+        );
+
+        assert!(outcome.mutated);
+        assert!(!outcome.cancelled);
+        assert_eq!(outcome.handlers_run, 1);
+        assert!(String::from_utf8_lossy(&outcome.args_json).contains("mutated.sql.gz"));
+    }
+
+    #[test]
+    fn cloudpanel_cancel_stops_remaining_hooks() {
+        let mut bus = EventBus::new();
+        bus.register_cloudpanel_hook("cancel", cancel_cloudpanel);
+        bus.register_cloudpanel_hook("continue", continue_cloudpanel);
+
+        let outcome = bus.run_cloudpanel_hooks("delete_site", "site:delete", b"[]");
+
+        assert!(outcome.cancelled);
+        assert_eq!(outcome.handlers_run, 1);
+        assert_eq!(outcome.cancel_reason, "blocked");
     }
 }

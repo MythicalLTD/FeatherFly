@@ -1,6 +1,6 @@
 use featherfly_plugin_sdk::metadata::{
-    CONFIG_HOOK_DOCS, EVENT_DOCS, JSON_HOOK_DOCS, MACROS, REQUEST_HOOK_DOCS, ROUTE_HOOK_DOCS,
-    plugin_api_version,
+    CLOUDPANEL_HOOK_DOCS, CONFIG_HOOK_DOCS, EVENT_DOCS, JSON_HOOK_DOCS, MACROS, REQUEST_HOOK_DOCS,
+    ROUTE_HOOK_DOCS, plugin_api_version,
 };
 use serde::Serialize;
 
@@ -13,6 +13,7 @@ pub struct PluginHookSchema {
     pub request_hooks: Vec<HookGuideSchema>,
     pub json_hooks: Vec<JsonHookSchema>,
     pub route_hooks: Vec<HookGuideSchema>,
+    pub cloudpanel_hooks: Vec<HookGuideSchema>,
     pub macros: Vec<MacroSchema>,
 }
 
@@ -103,6 +104,7 @@ pub fn build_hook_schema() -> PluginHookSchema {
             })
             .collect(),
         route_hooks: hook_guides(ROUTE_HOOK_DOCS),
+        cloudpanel_hooks: hook_guides(CLOUDPANEL_HOOK_DOCS),
         macros: MACROS
             .iter()
             .map(|(name, desc)| MacroSchema {
@@ -153,6 +155,7 @@ mod tests {
         assert_eq!(schema.json_hooks.len(), 2);
         assert!(!schema.request_hooks.is_empty());
         assert!(!schema.route_hooks.is_empty());
+        assert!(!schema.cloudpanel_hooks.is_empty());
         assert!(!schema.macros.is_empty());
     }
 
@@ -163,5 +166,6 @@ mod tests {
         assert!(json.contains("daemon.started"));
         assert!(json.contains("config.mutate"));
         assert!(json.contains("json.response"));
+        assert!(json.contains("cloudpanel.command"));
     }
 }

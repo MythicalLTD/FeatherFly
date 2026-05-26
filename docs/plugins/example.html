@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Complete FeatherFly v4 plugin — config, request, route, and JSON hooks.">
+  <meta name="description" content="Complete FeatherFly v7 plugin — config, request, route, JSON, and CloudPanel hooks.">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#000000">
   <meta name="author" content="FeatherFly">
@@ -13,12 +13,12 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="FeatherFly">
   <meta property="og:title" content="Full example · FeatherFly">
-  <meta property="og:description" content="Complete FeatherFly v4 plugin — config, request, route, and JSON hooks.">
+  <meta property="og:description" content="Complete FeatherFly v7 plugin — config, request, route, JSON, and CloudPanel hooks.">
   <meta property="og:url" content="https://mythicaltld.github.io/featherfly/plugins/example.html">
   <meta property="og:image" content="https://github.com/featherpanel-com.png">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="Full example · FeatherFly">
-  <meta name="twitter:description" content="Complete FeatherFly v4 plugin — config, request, route, and JSON hooks.">
+  <meta name="twitter:description" content="Complete FeatherFly v7 plugin — config, request, route, JSON, and CloudPanel hooks.">
   <meta name="twitter:image" content="https://github.com/featherpanel-com.png">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <title>Full example · FeatherFly</title>
@@ -119,13 +119,14 @@
         <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../index.html">Home</a> <span>/</span><a href="index.html">Plugins</a> <span>/</span><span>Full example</span></nav>
         <div class="source-bar"><span class="source-bar-label">Source</span> <a href="https://github.com/MythicalLTD/featherfly/blob/main/plugins/hello/src/lib.rs" class="source-link" target="_blank" rel="noopener">Hello plugin ↗</a></div>
         <article class="prose-docs"><h1>Full plugin example</h1><p class="lead">Every hook type in one plugin.</p>
-<p>Complete v4 plugin with config, request, route, and JSON hooks. Production source: <a href="https://github.com/MythicalLTD/featherfly/blob/main/plugins/hello/src/lib.rs" class="source-link" target="_blank" rel="noopener">plugins/hello ↗</a></p>
+<p>Complete v7 plugin with config, request, route, JSON, and CloudPanel hooks. Production source: <a href="https://github.com/MythicalLTD/featherfly/blob/main/plugins/hello/src/lib.rs" class="source-link" target="_blank" rel="noopener">plugins/hello ↗</a></p>
 <pre><code>use featherfly_plugin_sdk::{
-    declare_plugin, hook, hook_config, hook_json, hook_request, log_info, route,
-    write_json_output, write_route_response, write_yaml_output,
-    ConfigMutateContext, EventContext, HookResult, HostApi, JsonMutateContext, JsonMutateTarget,
-    PluginEvent, RequestHookContext, RequestHookPhase, RouteHandlerContext,
-    CONFIG_MUTATE_UNCHANGED, HTTP_METHOD_GET, JSON_MUTATE_UNCHANGED, REQUEST_CONTINUE,
+    declare_plugin, hook, hook_cloudpanel, hook_config, hook_json, hook_request, log_info, route,
+    write_cloudpanel_cancel, write_json_output, write_route_response, write_yaml_output,
+    CloudPanelCommandContext, ConfigMutateContext, EventContext, HookResult, HostApi,
+    JsonMutateContext, JsonMutateTarget, PluginEvent, RequestHookContext, RequestHookPhase,
+    RouteHandlerContext, CONFIG_MUTATE_UNCHANGED, CLOUDPANEL_CONTINUE, HTTP_METHOD_GET,
+    JSON_MUTATE_UNCHANGED, REQUEST_CONTINUE,
 };
 
 extern &quot;C&quot; fn init(host: *const HostApi) -&gt; i32 {
@@ -133,6 +134,7 @@ extern &quot;C&quot; fn init(host: *const HostApi) -&gt; i32 {
     hook_config!(host, on_config);
     hook_request!(host, RequestHookPhase::Intercept, &quot;/api/*&quot;, on_intercept);
     hook_json!(host, JsonMutateTarget::ResponseBody, &quot;/api/system&quot;, on_body);
+    hook_cloudpanel!(host, on_cloudpanel);
     route!(host, HTTP_METHOD_GET, &quot;/plugins/hello&quot;, on_route);
     unsafe { log_info(host, &quot;ready&quot;) };
     0
@@ -168,6 +170,15 @@ extern &quot;C&quot; fn on_body(ctx: *const JsonMutateContext) -&gt; i32 {
     }
     let Ok(out) = serde_json::to_vec(&amp;value) else { return JSON_MUTATE_UNCHANGED };
     write_json_output(ctx, &amp;out)
+}
+
+extern &quot;C&quot; fn on_cloudpanel(ctx: *const CloudPanelCommandContext) -&gt; i32 {
+    let ctx = unsafe { &amp;*ctx };
+    let command = unsafe { std::slice::from_raw_parts(ctx.command_ptr, ctx.command_len) };
+    if command == b&quot;site:delete&quot; {
+        return write_cloudpanel_cancel(ctx, b&quot;site deletion disabled by my-plugin&quot;);
+    }
+    CLOUDPANEL_CONTINUE
 }
 
 extern &quot;C&quot; fn on_route(ctx: *const RouteHandlerContext) -&gt; i32 {

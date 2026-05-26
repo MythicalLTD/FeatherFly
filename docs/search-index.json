@@ -205,6 +205,31 @@
     "text": "A plugin route handler failed. After the handler returns a negative route status or request body read fails. JSON: { plugin, method, path, error }. lifecycle event hook"
   },
   {
+    "title": "cloudpanel.command_requested",
+    "url": "plugins/events/cloudpanel-command_requested.html",
+    "text": "A CloudPanel CLI command was requested. Before CloudPanel command hooks run. JSON: { operation, command, args, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.command_mutated",
+    "url": "plugins/events/cloudpanel-command_mutated.html",
+    "text": "A CloudPanel command hook changed CLI args. After cloudpanel.command returns CLOUDPANEL_MODIFIED. JSON: { operation, command, args, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.command_cancelled",
+    "url": "plugins/events/cloudpanel-command_cancelled.html",
+    "text": "A CloudPanel command hook cancelled execution. After cloudpanel.command returns CLOUDPANEL_CANCEL. JSON: { operation, command, args, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.command_succeeded",
+    "url": "plugins/events/cloudpanel-command_succeeded.html",
+    "text": "A CloudPanel CLI command succeeded. After clpctl exits successfully. JSON: { operation, command, args, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.command_failed",
+    "url": "plugins/events/cloudpanel-command_failed.html",
+    "text": "A CloudPanel CLI command failed. After clpctl exits with a non-zero status or cannot run. JSON: { operation, command, args, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
     "title": "config.mutate",
     "url": "plugins/config-hooks/mutate.html",
     "text": "Rewrite config YAML before FeatherFly applies settings. After all plugins init, before directories/logging/pid are created. config yaml mutation"

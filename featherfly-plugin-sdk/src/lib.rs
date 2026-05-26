@@ -1,6 +1,6 @@
 pub mod metadata;
 
-pub const FEATHERFLY_PLUGIN_API_VERSION: u32 = 6;
+pub const FEATHERFLY_PLUGIN_API_VERSION: u32 = 7;
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,6 +25,11 @@ pub enum PluginEvent {
     PluginJsonActionsMutated = 18,
     PluginRouteInvoked = 19,
     PluginRouteFailed = 20,
+    CloudPanelCommandRequested = 21,
+    CloudPanelCommandMutated = 22,
+    CloudPanelCommandCancelled = 23,
+    CloudPanelCommandSucceeded = 24,
+    CloudPanelCommandFailed = 25,
 }
 
 impl PluginEvent {
@@ -56,6 +61,11 @@ impl PluginEvent {
             Self::PluginJsonActionsMutated => "plugins.json_actions_mutated",
             Self::PluginRouteInvoked => "plugins.route_invoked",
             Self::PluginRouteFailed => "plugins.route_failed",
+            Self::CloudPanelCommandRequested => "cloudpanel.command_requested",
+            Self::CloudPanelCommandMutated => "cloudpanel.command_mutated",
+            Self::CloudPanelCommandCancelled => "cloudpanel.command_cancelled",
+            Self::CloudPanelCommandSucceeded => "cloudpanel.command_succeeded",
+            Self::CloudPanelCommandFailed => "cloudpanel.command_failed",
         }
     }
 
@@ -192,6 +202,23 @@ pub struct RouteHandlerContext {
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
+pub struct CloudPanelCommandContext {
+    pub operation_ptr: *const u8,
+    pub operation_len: usize,
+    pub command_ptr: *const u8,
+    pub command_len: usize,
+    pub args_json_in_ptr: *const u8,
+    pub args_json_in_len: usize,
+    pub args_json_out_ptr: *mut u8,
+    pub args_json_out_capacity: usize,
+    pub args_json_out_len: *mut usize,
+    pub cancel_reason_ptr: *mut u8,
+    pub cancel_reason_capacity: usize,
+    pub cancel_reason_len: *mut usize,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct HookResult {
     pub cancelled: u8,
 }
@@ -213,6 +240,7 @@ pub type JsonMutateCallback = extern "C" fn(*const JsonMutateContext) -> i32;
 pub type ConfigMutateCallback = extern "C" fn(*const ConfigMutateContext) -> i32;
 pub type RequestHookCallback = extern "C" fn(*const RequestHookContext) -> i32;
 pub type RouteHandlerCallback = extern "C" fn(*const RouteHandlerContext) -> i32;
+pub type CloudPanelCommandCallback = extern "C" fn(*const CloudPanelCommandContext) -> i32;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
@@ -251,6 +279,12 @@ pub struct HostApi {
             path_ptr: *const u8,
             path_len: usize,
             callback: RouteHandlerCallback,
+            user_data: *mut core::ffi::c_void,
+        ) -> i32,
+    >,
+    pub register_cloudpanel_hook: Option<
+        extern "C" fn(
+            callback: CloudPanelCommandCallback,
             user_data: *mut core::ffi::c_void,
         ) -> i32,
     >,
@@ -316,6 +350,10 @@ pub const REQUEST_RESPOND: i32 = 1;
 
 pub const ROUTE_OK: i32 = 0;
 pub const ROUTE_ERROR: i32 = -1;
+
+pub const CLOUDPANEL_CONTINUE: i32 = 0;
+pub const CLOUDPANEL_MODIFIED: i32 = 1;
+pub const CLOUDPANEL_CANCEL: i32 = 2;
 
 pub const HTTP_METHOD_GET: u32 = 1;
 pub const HTTP_METHOD_POST: u32 = 2;
@@ -419,6 +457,22 @@ pub unsafe fn register_route(
     register_route(method, path.as_ptr(), path.len(), callback, host.hook_state)
 }
 
+pub unsafe fn register_cloudpanel_hook(
+    host: *const HostApi,
+    callback: CloudPanelCommandCallback,
+) -> i32 {
+    if host.is_null() {
+        return -1;
+    }
+
+    let host = unsafe { &*host };
+    let Some(register_cloudpanel_hook) = host.register_cloudpanel_hook else {
+        return -2;
+    };
+
+    register_cloudpanel_hook(callback, host.hook_state)
+}
+
 pub unsafe fn log_info(host: *const HostApi, message: &str) {
     if host.is_null() {
         return;
@@ -487,6 +541,28 @@ pub fn write_route_response(ctx: &RouteHandlerContext, status: u16, body: &[u8])
         body,
     )
     .map(|()| ROUTE_OK)
+    .unwrap_or(-2)
+}
+
+pub fn write_cloudpanel_args(ctx: &CloudPanelCommandContext, json: &[u8]) -> i32 {
+    write_bytes(
+        ctx.args_json_out_ptr,
+        ctx.args_json_out_capacity,
+        ctx.args_json_out_len,
+        json,
+    )
+    .map(|()| CLOUDPANEL_MODIFIED)
+    .unwrap_or(-2)
+}
+
+pub fn write_cloudpanel_cancel(ctx: &CloudPanelCommandContext, reason: &[u8]) -> i32 {
+    write_bytes(
+        ctx.cancel_reason_ptr,
+        ctx.cancel_reason_capacity,
+        ctx.cancel_reason_len,
+        reason,
+    )
+    .map(|()| CLOUDPANEL_CANCEL)
     .unwrap_or(-2)
 }
 
@@ -584,6 +660,16 @@ macro_rules! hook_request {
 macro_rules! route {
     ($host:expr, $method:expr, $path:expr, $callback:ident) => {
         let status = unsafe { $crate::register_route($host, $method, $path, $callback) };
+        if status != 0 {
+            return status;
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! hook_cloudpanel {
+    ($host:expr, $callback:ident) => {
+        let status = unsafe { $crate::register_cloudpanel_hook($host, $callback) };
         if status != 0 {
             return status;
         }

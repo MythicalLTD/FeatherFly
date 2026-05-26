@@ -136,6 +136,8 @@
             │
             ├─ plugin routes (route.register)
             │
+            ├─ CloudPanel API ──► cloudpanel.command ──► clpctl
+            │
             └─ JSON response for /api/*
                     ├─ json.response pipeline
                     └─ json.actions pipeline
@@ -154,9 +156,10 @@
 <table><thead><tr><th>Hook type</th><th>When it runs</th><th>Can cancel others?</th><th>Typical use</th></tr></thead><tbody>
 <tr><td>Lifecycle event</td><td>Fixed daemon milestones</td><td>Yes (same event only)</td><td>Startup banners, config validation</td></tr>
 <tr><td>JSON mutation</td><td>Every matching HTTP JSON response</td><td>No — always runs in pipeline</td><td>Response fields, panel actions</td></tr>
+<tr><td>CloudPanel command</td><td>Before clpctl process spawn</td><td>Yes — cancels command execution</td><td>Policy checks, defaults</td></tr>
 </tbody></table>
 <h3>Versioning</h3>
-<p>Plugin API <strong>v4</strong> (current) exposes lifecycle events, config mutation, request hooks, plugin routes, and JSON mutation. Future hooks will bump the API version so old plugins keep loading safely when new hook types appear.</p>
+<p>Plugin API <strong>v7</strong> (current) exposes lifecycle events, config mutation, request hooks, plugin routes, JSON mutation, and CloudPanel command hooks. Future hooks will bump the API version so old plugins keep loading safely when new hook types appear.</p>
 
 <h2>HTTP request stack</h2>
 <h2>HTTP request stack</h2>
