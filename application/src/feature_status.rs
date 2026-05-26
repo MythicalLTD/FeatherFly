@@ -283,7 +283,9 @@ const ENDPOINTS: &[EndpointEntry] = &[
     entry(
         "put_sites_hosting_limits",
         FeatureStatus::Prototype,
-        Some("Memory/CPU applied live; disk quota applies to daemon-mediated uploads; bandwidth metadata only"),
+        Some(
+            "Memory/CPU applied live; disk quota applies to daemon-mediated uploads; bandwidth metadata only",
+        ),
     ),
     entry("get_sites_stats", FeatureStatus::Implemented, None),
     // Deploy
@@ -614,5 +616,26 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn quota_catalog_status_matches_partial_enforcement() {
+        let quotas = SUBSYSTEMS
+            .iter()
+            .find(|subsystem| subsystem.id == "quotas")
+            .expect("quotas subsystem");
+        assert_eq!(quotas.status, FeatureStatus::Prototype);
+        assert!(quotas.summary.contains("Memory/CPU"));
+        assert!(quotas.summary.contains("disk quota"));
+        assert!(quotas.summary.contains("bandwidth"));
+
+        let catalog = endpoint_catalog();
+        let (_, note) = catalog
+            .get("put_sites_hosting_limits")
+            .expect("hosting limits endpoint");
+        let note = note.expect("hosting limits note");
+        assert!(note.contains("Memory/CPU"));
+        assert!(note.contains("disk quota"));
+        assert!(note.contains("bandwidth"));
     }
 }
