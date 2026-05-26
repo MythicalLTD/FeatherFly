@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use utoipa::openapi::security::SecurityRequirement;
 use utoipa::openapi::security::{Http, HttpAuthScheme, SecurityScheme};
 use utoipa::openapi::{OpenApi, ServerBuilder};
@@ -88,7 +89,11 @@ pub fn finalize_openapi(mut openapi: OpenApi, app_name: &str) -> OpenApi {
                 if operation.operation_id.as_deref() == Some("route") {
                     operation.operation_id = Some(format!("{method}{operation_suffix}"));
                 }
-                if path == "/health" {
+                if matches!(path.as_str(), "/health" | "/live" | "/ready")
+                    || path.starts_with("/download/")
+                    || path.starts_with("/upload/")
+                    || path == "/api/sites/{id}/ws"
+                {
                     operation.security = None;
                 } else {
                     operation.security = Some(vec![security_req.clone()]);
@@ -98,6 +103,7 @@ pub fn finalize_openapi(mut openapi: OpenApi, app_name: &str) -> OpenApi {
     }
 
     openapi.servers = Some(vec![ServerBuilder::new().url("/").build()]);
+    crate::feature_status::apply_openapi_extensions(&mut openapi);
     openapi
 }
 
@@ -145,16 +151,23 @@ fn sanitize_segment(input: &str) -> String {
 }
 
 fn dummy_state(app_name: &str) -> std::sync::Arc<AppState> {
+    let config = crate::config::Config::for_openapi_docs(app_name);
+    let inner = config.load();
+    let jwt = Arc::new(crate::remote::jwt::JwtClient::new(
+        &inner.token,
+        inner.api.max_jwt_uses,
+    ));
     std::sync::Arc::new(AppState {
         start_time: std::time::Instant::now(),
         container_type: AppContainerType::None,
         version: crate::full_version(),
-        config: crate::config::Config::for_openapi_docs(app_name),
+        config,
         plugins: crate::plugins::PluginRegistry::empty(),
         probe_guard: crate::middlewares::probe::ProbeGuard::new(),
         docker: None,
         panel: arc_swap::ArcSwapOption::from(None),
         cache: None,
+        jwt,
     })
 }
 
@@ -173,6 +186,7 @@ mod tests {
         let openapi = build_openapi("FeatherFly");
 
         for (path, method) in [
+            ("/api/system/audit", HttpMethod::Get),
             ("/api/sites/{id}/deploy/webhook", HttpMethod::Post),
             ("/api/containers/{id}/exec/ws", HttpMethod::Get),
             ("/api/system/plugins/schema", HttpMethod::Get),
@@ -185,14 +199,16 @@ mod tests {
     }
 
     #[test]
-    fn health_route_is_unauthenticated_in_openapi() {
+    fn health_routes_are_unauthenticated_in_openapi() {
         let openapi = build_openapi("FeatherFly");
-        let operation = openapi
-            .paths
-            .get_path_operation("/health", HttpMethod::Get)
-            .expect("health operation");
+        for path in ["/health", "/live", "/ready"] {
+            let operation = openapi
+                .paths
+                .get_path_operation(path, HttpMethod::Get)
+                .unwrap_or_else(|| panic!("{path} operation"));
 
-        assert!(operation.security.is_none());
+            assert!(operation.security.is_none(), "{path} should be public");
+        }
     }
 
     #[test]

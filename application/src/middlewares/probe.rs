@@ -15,6 +15,7 @@ use crate::{
     config::ProbeProtectionConfig,
     routes::State as AppStateArc,
     utils::{
+        audit::AuditEvent,
         plugin_events::{
             self, ProbeBlockedPayload, RequestCompletedPayload, RequestPayload, emit_json,
         },
@@ -134,11 +135,13 @@ pub async fn middleware(
     let config = state.config.load().security.probe_protection.clone();
     let ip = peer.ip();
     let client_ip = plugin_events::ip_string(ip);
+    let request_id = crate::middlewares::request_id::current_request_id(&req).to_string();
     let started = Instant::now();
 
     if config.enabled && state.probe_guard.is_blocked(ip, &config) {
         if config.log_blocked {
             tracing::warn!(
+                request_id = %request_id,
                 client_ip = %client_ip,
                 "rejected request from blocked probe client"
             );
@@ -147,12 +150,26 @@ pub async fn middleware(
             &state.plugins,
             PluginEvent::RequestBlocked,
             &RequestPayload {
+                request_id: &request_id,
                 client_ip: &client_ip,
                 method: req.method().as_str(),
                 path: req.uri().path(),
                 query: req.uri().query().unwrap_or(""),
             },
         );
+        crate::utils::audit::record(
+            &state,
+            AuditEvent::security("request.blocked")
+                .with_request_context(
+                    &request_id,
+                    &client_ip,
+                    req.method().as_str(),
+                    req.uri().path(),
+                    i64::from(StatusCode::TOO_MANY_REQUESTS.as_u16()),
+                )
+                .with_message("probe protection blocked client"),
+        )
+        .await;
         return ApiResponse::error("too many unknown route requests")
             .with_status(StatusCode::TOO_MANY_REQUESTS)
             .into_response();
@@ -166,6 +183,7 @@ pub async fn middleware(
         &state.plugins,
         PluginEvent::RequestReceived,
         &RequestPayload {
+            request_id: &request_id,
             client_ip: &client_ip,
             method: &method,
             path: &path,
@@ -186,6 +204,7 @@ pub async fn middleware(
     if config.enabled && status == StatusCode::NOT_FOUND {
         if let Some(event) = state.probe_guard.record_unknown_route(ip, &config) {
             tracing::warn!(
+                request_id = %request_id,
                 client_ip = %client_ip,
                 unknown_hits = event.unknown_hits,
                 window_secs = config.window_secs,
@@ -197,13 +216,33 @@ pub async fn middleware(
                 &state.plugins,
                 PluginEvent::ProbeClientBlocked,
                 &ProbeBlockedPayload {
+                    request_id: &request_id,
                     client_ip: &client_ip,
                     unknown_hits: event.unknown_hits,
                     block_secs: config.block_secs,
                 },
             );
+            crate::utils::audit::record(
+                &state,
+                AuditEvent::security("probe.blocked")
+                    .with_request_context(
+                        &request_id,
+                        &client_ip,
+                        &method,
+                        &path,
+                        i64::from(status.as_u16()),
+                    )
+                    .with_message("probe protection threshold reached")
+                    .with_metadata(serde_json::json!({
+                        "unknown_hits": event.unknown_hits,
+                        "window_secs": config.window_secs,
+                        "block_secs": config.block_secs,
+                    })),
+            )
+            .await;
         } else if config.log_unknown_routes {
             tracing::debug!(
+                request_id = %request_id,
                 client_ip = %client_ip,
                 status = status.as_u16(),
                 "unknown route {method} from {client_ip} {uri}"
@@ -213,6 +252,7 @@ pub async fn middleware(
             &state.plugins,
             PluginEvent::RequestNotFound,
             &RequestPayload {
+                request_id: &request_id,
                 client_ip: &client_ip,
                 method: &method,
                 path: &path,
@@ -221,6 +261,7 @@ pub async fn middleware(
         );
     } else if config.log_requests {
         tracing::debug!(
+            request_id = %request_id,
             client_ip = %client_ip,
             status = status.as_u16(),
             "http {method} from {client_ip} {uri}"
@@ -231,6 +272,7 @@ pub async fn middleware(
         &state.plugins,
         PluginEvent::RequestCompleted,
         &RequestCompletedPayload {
+            request_id: &request_id,
             client_ip: &client_ip,
             method: &method,
             path: &path,

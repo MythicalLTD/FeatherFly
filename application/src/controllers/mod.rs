@@ -1,8 +1,12 @@
 pub mod containers;
 pub mod docker;
+pub mod download;
+pub mod eggs;
 pub mod health;
 pub mod metrics;
 pub mod proxy;
+pub mod site_ws;
 pub mod sites;
 pub mod stats;
 pub mod system;
+pub mod upload;

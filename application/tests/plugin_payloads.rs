@@ -14,6 +14,7 @@ fn all_payload_structs_serialize() {
     assert_serializes!(
         request,
         RequestPayload {
+            request_id: "req-1",
             client_ip: "127.0.0.1",
             method: "GET",
             path: "/api/health",
@@ -23,6 +24,7 @@ fn all_payload_structs_serialize() {
     assert_serializes!(
         completed,
         RequestCompletedPayload {
+            request_id: "req-1",
             client_ip: "127.0.0.1",
             method: "POST",
             path: "/api/sites",

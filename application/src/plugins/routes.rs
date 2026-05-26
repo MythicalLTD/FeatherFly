@@ -19,7 +19,12 @@ pub fn router(state: &AppState) -> OpenApiRouter<AppState> {
         plugin_router = plugin_router.route(&path, any(dispatch_plugin_route));
     }
 
-    plugin_router.with_state(state.clone())
+    plugin_router
+        .route_layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            crate::middlewares::auth::middleware,
+        ))
+        .with_state(state.clone())
 }
 
 fn unique_paths(state: &AppState) -> Vec<String> {
@@ -112,4 +117,20 @@ async fn invoke_route(state: &AppState, route: &RegisteredRoute, req: Request) -
         },
     );
     response
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn plugin_routes_use_same_node_bearer_as_api() {
+        let inner = crate::config::InnerConfig {
+            token_id: "node-id".into(),
+            token: "node-secret".into(),
+            ..Default::default()
+        };
+        assert!(crate::utils::auth::validate_node_bearer(
+            "Bearer node-secret",
+            &inner
+        ));
+    }
 }

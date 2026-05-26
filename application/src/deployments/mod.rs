@@ -8,6 +8,7 @@ use crate::cache::SiteRecord;
 use crate::config::InnerConfig;
 
 pub mod blue_green;
+pub mod health;
 
 pub async fn run_deploy(
     inner: &InnerConfig,

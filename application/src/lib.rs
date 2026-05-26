@@ -10,6 +10,8 @@ pub mod databases;
 pub mod deployments;
 pub mod dns;
 pub mod docker;
+pub mod eggs;
+pub mod feature_status;
 pub mod files;
 pub mod ftp;
 pub mod hosting;
@@ -20,8 +22,8 @@ pub mod proxy;
 pub mod remote;
 pub mod routes;
 pub mod scheduler;
+pub mod site_websocket;
 pub mod sites;
-pub mod templates;
 pub mod utils;
 pub mod websocket;
 

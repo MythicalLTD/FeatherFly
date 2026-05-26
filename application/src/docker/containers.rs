@@ -4,6 +4,7 @@ use anyhow::Context;
 use bollard::container::{
     Config, CreateContainerOptions, InspectContainerOptions, ListContainersOptions,
     RemoveContainerOptions, RestartContainerOptions, StartContainerOptions, StopContainerOptions,
+    UpdateContainerOptions,
 };
 use bollard::image::CreateImageOptions;
 use bollard::models::PortBinding;
@@ -11,7 +12,7 @@ use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use super::{DockerManager, secure_host_config};
+use super::{DockerManager, memory_limit_bytes, secure_host_config};
 
 #[derive(Debug, Clone, Deserialize, Serialize, ToSchema)]
 pub struct CreateContainerRequest {
@@ -191,6 +192,27 @@ impl DockerManager {
             .remove_container(id, options)
             .await
             .with_context(|| format!("failed to remove container {id}"))?;
+        Ok(())
+    }
+
+    pub async fn update_container_resources(
+        &self,
+        id: &str,
+        memory_mb: Option<u64>,
+        cpu_quota: Option<i64>,
+    ) -> Result<(), anyhow::Error> {
+        let memory = memory_limit_bytes(memory_mb);
+        let options = UpdateContainerOptions::<String> {
+            memory,
+            memory_swap: memory,
+            cpu_quota,
+            ..Default::default()
+        };
+
+        self.client()
+            .update_container(id, options)
+            .await
+            .with_context(|| format!("failed to update container resource limits for {id}"))?;
         Ok(())
     }
 

@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::{
-    docker::{sanitize_site_path, volume_read_file, volume_run, volume_write_file},
+    docker::{
+        sanitize_site_path, volume_file_size, volume_read_file, volume_run, volume_usage_bytes,
+        volume_write_file,
+    },
     routes::State,
     utils::plugin_events::{self, FileManagerPayload},
 };
@@ -99,8 +102,21 @@ impl FileService {
         path: &str,
         bytes: &[u8],
     ) -> Result<(), anyhow::Error> {
-        let (docker, volume) = site_volume(state, site_id).await?;
-        volume_write_file(docker, &volume, path, bytes).await?;
+        let docker = state.docker.as_ref().context("docker unavailable")?;
+        let cache = state.cache.as_ref().context("cache unavailable")?;
+        let site = cache.get_site(site_id).await?.context("site not found")?;
+        let volume = site.volume.context("site has no volume")?;
+
+        enforce_disk_quota(
+            docker.as_ref(),
+            &volume,
+            site.disk_quota_mb,
+            path,
+            bytes.len() as u64,
+        )
+        .await?;
+
+        volume_write_file(docker.as_ref(), &volume, path, bytes).await?;
         emit(state, site_id, "upload", path);
         Ok(())
     }
@@ -193,6 +209,48 @@ async fn site_volume<'a>(
     let site = cache.get_site(site_id).await?.context("site not found")?;
     let volume = site.volume.context("site has no volume")?;
     Ok((docker.as_ref(), volume))
+}
+
+async fn enforce_disk_quota(
+    docker: &crate::docker::DockerManager,
+    volume: &str,
+    disk_quota_mb: Option<i64>,
+    path: &str,
+    incoming_bytes: u64,
+) -> Result<(), anyhow::Error> {
+    let Some(quota_bytes) = disk_quota_bytes(disk_quota_mb) else {
+        return Ok(());
+    };
+
+    let current_usage = volume_usage_bytes(docker, volume).await?;
+    let existing_size = volume_file_size(docker, volume, path).await?.unwrap_or(0);
+    let projected_usage =
+        projected_disk_usage_after_write(current_usage, existing_size, incoming_bytes);
+
+    if projected_usage > quota_bytes {
+        anyhow::bail!(
+            "disk quota exceeded: projected usage {projected_usage} bytes exceeds limit {quota_bytes} bytes"
+        );
+    }
+
+    Ok(())
+}
+
+pub fn disk_quota_bytes(disk_quota_mb: Option<i64>) -> Option<u64> {
+    disk_quota_mb
+        .and_then(|mb| u64::try_from(mb).ok())
+        .filter(|mb| *mb > 0)
+        .map(|mb| mb.saturating_mul(1024 * 1024))
+}
+
+pub fn projected_disk_usage_after_write(
+    current_usage: u64,
+    existing_size: u64,
+    incoming_bytes: u64,
+) -> u64 {
+    current_usage
+        .saturating_sub(existing_size)
+        .saturating_add(incoming_bytes)
 }
 
 fn emit(state: &State, site_id: &str, action: &str, path: &str) {

@@ -25,6 +25,14 @@ pub fn ensure_node_identity(uuid: &mut String, token_id: &mut String, token: &mu
     changed
 }
 
+pub fn generate_token_id() -> String {
+    random_alphanumeric(TOKEN_ID_LEN)
+}
+
+pub fn generate_token_secret() -> String {
+    random_alphanumeric(TOKEN_LEN)
+}
+
 fn random_alphanumeric(len: usize) -> String {
     let mut out = String::with_capacity(len);
     let mut buf = [0u8; 1];

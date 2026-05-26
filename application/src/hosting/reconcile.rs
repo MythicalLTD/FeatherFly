@@ -57,6 +57,11 @@ pub async fn reconcile_on_startup(state: &State) -> ReconcileSummary {
     summary.sites_total = sites.len();
 
     for site in &sites {
+        if !crate::sites::site_is_active(&site.status) {
+            tracing::debug!(site = %site.id, "skipping suspended site on reconcile");
+            continue;
+        }
+
         if let Some(cid) = &site.container_id
             && docker.start_container(cid).await.is_ok()
         {

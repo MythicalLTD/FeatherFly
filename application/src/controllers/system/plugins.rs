@@ -2,6 +2,7 @@ use crate::{
     routes::GetState,
     utils::{
         actions::{ApiAction, plugins_actions},
+        audit::AuditEvent,
         plugin_events::{self, PluginReloadPayload, RestartScheduledPayload},
         response::{ApiResponse, ApiResponseResult},
     },
@@ -21,6 +22,7 @@ struct GetResponse {
     json_targets: Vec<&'static str>,
     request_phases: Vec<&'static str>,
     plugin_routes: usize,
+    load_errors: Vec<crate::plugins::PluginLoadError>,
     plugins: Vec<crate::plugins::PluginSummary>,
     actions: Vec<ApiAction>,
 }
@@ -47,6 +49,7 @@ pub async fn get(state: GetState) -> ApiResponseResult {
             featherfly_plugin_sdk::RequestHookPhase::Middleware.name(),
         ],
         plugin_routes: state.plugins.routes().len(),
+        load_errors: state.plugins.load_errors(),
         plugins: state.plugins.summaries(),
         actions: plugins_actions(),
     })
@@ -114,6 +117,17 @@ pub async fn reload(state: GetState) -> ApiResponseResult {
     );
 
     crate::daemon_control::schedule_restart(delay_ms);
+
+    crate::utils::audit::record(
+        &state,
+        AuditEvent::action("plugins.reload_requested")
+            .with_resource("plugins", "runtime")
+            .with_metadata(serde_json::json!({
+                "plugin_count": plugin_count,
+                "delay_ms": delay_ms,
+            })),
+    )
+    .await;
 
     ApiResponse::new_serialized(ReloadResponse {
         scheduled: true,

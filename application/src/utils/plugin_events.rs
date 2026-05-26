@@ -5,6 +5,8 @@ use crate::plugins::PluginRegistry;
 
 #[derive(Serialize)]
 pub struct RequestPayload<'a> {
+    #[serde(skip_serializing_if = "str::is_empty")]
+    pub request_id: &'a str,
     pub client_ip: &'a str,
     pub method: &'a str,
     pub path: &'a str,
@@ -14,6 +16,8 @@ pub struct RequestPayload<'a> {
 
 #[derive(Serialize)]
 pub struct RequestCompletedPayload<'a> {
+    #[serde(skip_serializing_if = "str::is_empty")]
+    pub request_id: &'a str,
     pub client_ip: &'a str,
     pub method: &'a str,
     pub path: &'a str,
@@ -25,6 +29,8 @@ pub struct RequestCompletedPayload<'a> {
 
 #[derive(Serialize)]
 pub struct ProbeBlockedPayload<'a> {
+    #[serde(skip_serializing_if = "str::is_empty")]
+    pub request_id: &'a str,
     pub client_ip: &'a str,
     pub unknown_hits: u32,
     pub block_secs: u32,
@@ -220,7 +226,7 @@ pub struct SiteProvisionedPayload<'a> {
     pub id: &'a str,
     pub name: &'a str,
     pub domain: &'a str,
-    pub template: &'a str,
+    pub egg_id: &'a str,
     pub container_id: &'a str,
 }
 

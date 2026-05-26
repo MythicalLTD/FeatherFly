@@ -33,7 +33,7 @@ match_wildcard_for_single_variants = "allow"
 
 [workspace.dependencies]
 anyhow = "1.0.98"
-axum = { version = "0.8.1", features = ["http2", "ws"] }
+axum = { version = "0.8.1", features = ["http2", "ws", "multipart"] }
 serde = { version = "1.0.138", features = ["derive"] }
 utoipa = { version = "5.4.0", features = ["axum_extras", "chrono"] }
 utoipa-axum = "0.2.0"

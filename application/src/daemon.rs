@@ -50,7 +50,10 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
     let plugin_registry = crate::plugins::load_directory(plugins_dir, preview.plugins.enabled)
         .unwrap_or_else(|err| {
             tracing::error!("failed to load plugins: {err:#}");
-            crate::plugins::PluginRegistry::empty()
+            crate::plugins::PluginRegistry::with_load_error(
+                plugins_dir.display().to_string(),
+                err.to_string(),
+            )
         });
 
     if plugin_registry.config_hook_count() > 0 {
@@ -116,10 +119,8 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
         );
     }
 
-    if let Err(err) =
-        crate::templates::ensure_builtin_templates(&config.load().hosting.templates_directory)
-    {
-        tracing::warn!(%err, "failed to install builtin site templates");
+    if let Err(err) = crate::eggs::ensure_eggs_directory(&config.load().hosting.eggs_directory) {
+        tracing::warn!(%err, "failed to create eggs directory");
     }
 
     plugin_registry.log_startup_summary();
@@ -209,6 +210,12 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
         }
     };
 
+    let inner = config.load();
+    let jwt = Arc::new(crate::remote::jwt::JwtClient::new(
+        &inner.token,
+        inner.api.max_jwt_uses,
+    ));
+
     let state = Arc::new(crate::routes::AppState {
         start_time: std::time::Instant::now(),
         container_type: match std::env::var("OCI_CONTAINER").as_deref() {
@@ -223,6 +230,7 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
         docker,
         panel: arc_swap::ArcSwapOption::from(None),
         cache,
+        jwt,
     });
 
     let panel_handle = crate::websocket::spawn_panel_client(Arc::clone(&state));
@@ -264,6 +272,9 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
             state.clone(),
             crate::plugins::middleware::response_middleware,
         ))
+        .layer(axum::middleware::from_fn(
+            crate::middlewares::request_id::middleware,
+        ))
         .with_state(state.clone());
 
     tracing::debug!(
@@ -288,6 +299,18 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
 
     if let Ok(host) = config.load().api.host.parse::<std::net::IpAddr>() {
         let address = std::net::SocketAddr::from((host, config.load().api.port));
+
+        let listener = match tokio::net::TcpListener::bind(address).await {
+            Ok(listener) => listener,
+            Err(err) => {
+                if err.kind() == std::io::ErrorKind::AddrInUse {
+                    tracing::error!("failed to start http server (address already in use)");
+                } else {
+                    tracing::error!("failed to start http server: {:?}", err);
+                }
+                return Err(1);
+            }
+        };
 
         tracing::info!(
             address = %address,
@@ -335,17 +358,7 @@ pub async fn start(config_path: &str, debug: bool) -> Result<(), i32> {
         }
 
         match axum::serve(
-            match tokio::net::TcpListener::bind(address).await {
-                Ok(listener) => listener,
-                Err(err) => {
-                    if err.kind() == std::io::ErrorKind::AddrInUse {
-                        tracing::error!("failed to start http server (address already in use)");
-                    } else {
-                        tracing::error!("failed to start http server: {:?}", err);
-                    }
-                    return Err(1);
-                }
-            },
+            listener,
             router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
         )
         .await

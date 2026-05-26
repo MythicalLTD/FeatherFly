@@ -848,7 +848,7 @@ pub const EVENT_DOCS: &[EventDoc] = &[
         name: "site.provisioned",
         summary: "A hosted site was fully provisioned.",
         when: "POST /api/sites succeeded.",
-        payload: "JSON: `{ id, name, domain, template, container_id }`",
+        payload: "JSON: `{ id, name, domain, egg_id, container_id }`",
         cancelable: false,
         details: "Includes network, volume, proxy labels, and container creation.",
         use_cases: &["Sync site inventory with FeatherPanel"],

@@ -102,6 +102,7 @@ impl HostingService {
         site_id: &str,
         req: UpdateLimitsRequest,
     ) -> Result<HostingLimits, anyhow::Error> {
+        let update_container_resources = req.memory_mb.is_some() || req.cpu_quota.is_some();
         let cache = state
             .cache
             .as_ref()
@@ -122,6 +123,20 @@ impl HostingService {
         }
         if let Some(b) = req.bandwidth_mbps {
             site.bandwidth_mbps = Some(b);
+        }
+
+        if update_container_resources && let Some(container_id) = site.container_id.as_deref() {
+            let docker = state
+                .docker
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("docker unavailable"))?;
+            docker
+                .update_container_resources(
+                    container_id,
+                    site.memory_mb.and_then(|memory| u64::try_from(memory).ok()),
+                    site.cpu_quota,
+                )
+                .await?;
         }
 
         cache.save_site(&site).await?;

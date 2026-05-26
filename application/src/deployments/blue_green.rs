@@ -7,8 +7,10 @@ use uuid::Uuid;
 use crate::{
     cache::SiteRecord,
     config::InnerConfig,
+    deployments::health::wait_for_site_ready,
+    eggs::load_egg,
     routes::State,
-    templates::load_template,
+    sites::create_site_container_internal,
     utils::plugin_events::{self, DeployBlueGreenPayload},
 };
 
@@ -29,7 +31,14 @@ pub async fn run_blue_green_deploy(
 
     crate::deployments::run_deploy(inner, site, git_ref, false, false).await?;
 
-    let template = load_template(&inner.hosting.templates_directory, &site.template)?;
+    let egg = load_egg(&inner.hosting.eggs_directory, &site.egg_id)?;
+    let mut runtime = egg.resolve(&site.variables)?;
+    if let Some(root) = site.document_root.as_deref().filter(|r| !r.is_empty()) {
+        runtime
+            .env
+            .insert("FEATHERFLY_DOCUMENT_ROOT".into(), root.into());
+    }
+
     let network = site.network.as_ref().context("site has no network")?;
     let volume = site.volume.as_ref().context("site has no volume")?;
     let old_id = site.container_id.clone();
@@ -39,33 +48,13 @@ pub async fn run_blue_green_deploy(
     labels.insert("featherfly.site.id".into(), site.id.clone());
     labels.insert("featherfly.site.domain".into(), site.domain.clone());
 
-    if inner.proxy.enabled {
-        labels.extend(crate::proxy::build_site_labels(
-            &inner.proxy,
-            &crate::proxy::SiteProxySpec {
-                site_id: site.id.clone(),
-                domains: vec![site.domain.clone()],
-                port: template.port,
-                path_prefix: None,
-            },
-        ));
-    }
-
-    let mount_target = if template.mount_path.is_empty() {
-        template.workdir.clone()
-    } else {
-        template.mount_path.clone()
-    };
-
-    let green_id = crate::sites::create_site_container_internal(
+    let green_id = create_site_container_internal(
         docker,
         inner,
         &green_name,
-        &template,
+        &runtime,
         network,
         volume,
-        &mount_target,
-        &HashMap::new(),
         labels,
         site.memory_mb.map(|m| m as u64),
         site.cpu_quota,
@@ -79,13 +68,62 @@ pub async fn run_blue_green_deploy(
 
     docker.start_container(&green_id).await?;
 
+    let health_path = inner.proxy.health_check_path.as_deref();
+    if let Err(err) =
+        wait_for_site_ready(docker, &green_id, network, runtime.port, health_path).await
+    {
+        let _ = docker.stop_container(&green_id).await;
+        docker.remove_container(&green_id, true).await.ok();
+        anyhow::bail!("blue/green deploy rolled back — new container failed health check: {err:#}");
+    }
+
     if let Some(old) = old_id {
         let _ = docker.stop_container(&old).await;
         docker.remove_container(&old, true).await.ok();
     }
 
+    let _ = docker.stop_container(&green_id).await;
+    docker.remove_container(&green_id, true).await.ok();
+
+    let routing_domains = crate::sites::site_routing_hosts(site);
+    let mut final_labels = HashMap::new();
+    final_labels.insert("featherfly.site.id".into(), site.id.clone());
+    final_labels.insert("featherfly.site.domain".into(), site.domain.clone());
+    if inner.proxy.enabled && crate::sites::site_is_active(&site.status) {
+        final_labels.extend(crate::proxy::build_site_labels(
+            &inner.proxy,
+            &crate::proxy::SiteProxySpec {
+                site_id: site.id.clone(),
+                domains: routing_domains,
+                port: runtime.port,
+                path_prefix: None,
+            },
+        ));
+    }
+
+    let final_name = format!("site-{}", site.id);
+    let final_id = create_site_container_internal(
+        docker,
+        inner,
+        &final_name,
+        &runtime,
+        network,
+        volume,
+        final_labels,
+        site.memory_mb.map(|m| m as u64),
+        site.cpu_quota,
+    )
+    .await?;
+
+    if inner.hosting.attach_proxy_network && inner.proxy.enabled {
+        crate::docker::connect_container_network(docker.client(), &inner.proxy.network, &final_id)
+            .await?;
+    }
+
+    docker.start_container(&final_id).await?;
+
     let mut updated = site.clone();
-    updated.container_id = Some(green_id);
+    updated.container_id = Some(final_id);
     cache.save_site(&updated).await?;
 
     plugin_events::emit_state_event(

@@ -6,6 +6,6 @@ pub use bootstrap::{
     traefik_result_label, traefik_runtime_status,
 };
 pub use traefik::{
-    ServiceRouteSpec, SiteProxySpec, build_service_labels, build_site_labels,
-    build_subdomain_labels, expand_hosts,
+    RedirectSpec, ServiceRouteSpec, SiteProxySpec, build_redirect_labels, build_service_labels,
+    build_site_labels, build_subdomain_labels, expand_hosts,
 };

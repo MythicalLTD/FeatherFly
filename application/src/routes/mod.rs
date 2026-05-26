@@ -5,6 +5,8 @@ use utoipa::ToSchema;
 use utoipa_axum::router::OpenApiRouter;
 
 pub mod api;
+pub mod download;
+pub mod upload;
 
 #[derive(Debug, ToSchema, Serialize, Clone, Copy)]
 #[serde(rename_all = "snake_case")]
@@ -25,6 +27,7 @@ pub struct AppState {
     pub docker: Option<Arc<crate::docker::DockerManager>>,
     pub panel: ArcSwapOption<crate::websocket::PanelHandle>,
     pub cache: Option<Arc<crate::cache::Cache>>,
+    pub jwt: Arc<crate::remote::jwt::JwtClient>,
 }
 
 pub type State = Arc<AppState>;
@@ -33,6 +36,10 @@ pub type GetState = axum::extract::State<State>;
 pub fn router(state: &State) -> OpenApiRouter<State> {
     OpenApiRouter::new()
         .routes(utoipa_axum::routes!(crate::controllers::health::get))
+        .routes(utoipa_axum::routes!(crate::controllers::health::live))
+        .routes(utoipa_axum::routes!(crate::controllers::health::ready))
         .nest("/api", api::router(state))
+        .nest("/download", download::router(state))
+        .nest("/upload", upload::router(state))
         .with_state(state.clone())
 }

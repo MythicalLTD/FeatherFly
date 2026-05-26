@@ -81,7 +81,7 @@ proxy:
   publish_https_port: 443
 
 hosting:
-  templates_directory: /var/lib/featherfly/templates
+  eggs_directory: /var/lib/featherfly/eggs
   auto_pull_images: true
   # Pull latest stack images and recreate Traefik + shared containers on boot.
   auto_update_images: true

@@ -5,12 +5,12 @@ use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqlitePool, sqlite::SqliteConnectOptions};
 use utoipa::ToSchema;
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SiteRecord {
     pub id: String,
     pub name: String,
     pub domain: String,
-    pub template: String,
+    pub egg_id: String,
     pub container_id: Option<String>,
     pub network: Option<String>,
     pub volume: Option<String>,
@@ -19,7 +19,101 @@ pub struct SiteRecord {
     pub cpu_quota: Option<i64>,
     pub disk_quota_mb: Option<i64>,
     pub bandwidth_mbps: Option<i64>,
+    #[serde(default = "site_status_active_default")]
+    pub status: String,
+    #[serde(default)]
+    pub domains: Vec<String>,
+    #[serde(default)]
+    pub document_root: Option<String>,
+    #[serde(default = "site_type_custom_default")]
+    pub site_type: String,
+    #[serde(default)]
+    pub variables: std::collections::HashMap<String, String>,
+    #[serde(default)]
+    pub redirects: Vec<crate::sites::SiteRedirect>,
+    #[serde(default)]
+    pub preview_domain: Option<String>,
+    #[serde(default)]
+    pub wildcard_domain: bool,
     pub created_at: i64,
+}
+
+fn site_status_active_default() -> String {
+    crate::sites::SITE_STATUS_ACTIVE.into()
+}
+
+fn site_type_custom_default() -> String {
+    crate::sites::SiteType::Custom.as_str().into()
+}
+
+#[derive(Debug, FromRow)]
+struct SiteRow {
+    id: String,
+    name: String,
+    domain: String,
+    egg_id: Option<String>,
+    template: Option<String>,
+    container_id: Option<String>,
+    network: Option<String>,
+    volume: Option<String>,
+    git_repo: Option<String>,
+    memory_mb: Option<i64>,
+    cpu_quota: Option<i64>,
+    disk_quota_mb: Option<i64>,
+    bandwidth_mbps: Option<i64>,
+    status: Option<String>,
+    domains: Option<String>,
+    document_root: Option<String>,
+    site_type: Option<String>,
+    variables: Option<String>,
+    redirects: Option<String>,
+    preview_domain: Option<String>,
+    wildcard_domain: Option<i64>,
+    created_at: i64,
+}
+
+impl From<SiteRow> for SiteRecord {
+    fn from(row: SiteRow) -> Self {
+        Self {
+            id: row.id,
+            name: row.name,
+            domain: row.domain,
+            egg_id: row
+                .egg_id
+                .or(row.template)
+                .unwrap_or_else(|| "unknown".into()),
+            container_id: row.container_id,
+            network: row.network,
+            volume: row.volume,
+            git_repo: row.git_repo,
+            memory_mb: row.memory_mb,
+            cpu_quota: row.cpu_quota,
+            disk_quota_mb: row.disk_quota_mb,
+            bandwidth_mbps: row.bandwidth_mbps,
+            status: row
+                .status
+                .unwrap_or_else(|| crate::sites::SITE_STATUS_ACTIVE.into()),
+            domains: row
+                .domains
+                .and_then(|raw| serde_json::from_str(&raw).ok())
+                .unwrap_or_default(),
+            document_root: row.document_root,
+            site_type: row
+                .site_type
+                .unwrap_or_else(|| crate::sites::SiteType::Custom.as_str().into()),
+            variables: row
+                .variables
+                .and_then(|raw| serde_json::from_str(&raw).ok())
+                .unwrap_or_default(),
+            redirects: row
+                .redirects
+                .and_then(|raw| serde_json::from_str(&raw).ok())
+                .unwrap_or_default(),
+            preview_domain: row.preview_domain,
+            wildcard_domain: row.wildcard_domain.is_some_and(|v| v != 0),
+            created_at: row.created_at,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
@@ -107,6 +201,24 @@ pub struct FtpMetaRecord {
     pub sftp_container_id: Option<String>,
     pub ftp_container_id: Option<String>,
     pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
+pub struct AuditEventRecord {
+    pub id: String,
+    pub created_at: i64,
+    pub request_id: Option<String>,
+    pub actor: Option<String>,
+    pub action: String,
+    pub resource_type: Option<String>,
+    pub resource_id: Option<String>,
+    pub client_ip: Option<String>,
+    pub method: Option<String>,
+    pub path: Option<String>,
+    pub status: Option<i64>,
+    pub success: i64,
+    pub message: Option<String>,
+    pub metadata_json: Option<String>,
 }
 
 pub struct Cache {
@@ -254,6 +366,38 @@ impl Cache {
         let _ = sqlx::query("ALTER TABLE sites ADD COLUMN bandwidth_mbps INTEGER")
             .execute(&pool)
             .await;
+        let _ = sqlx::query("ALTER TABLE sites ADD COLUMN status TEXT NOT NULL DEFAULT 'active'")
+            .execute(&pool)
+            .await;
+        let _ = sqlx::query("ALTER TABLE sites ADD COLUMN domains TEXT NOT NULL DEFAULT '[]'")
+            .execute(&pool)
+            .await;
+        let _ = sqlx::query("ALTER TABLE sites ADD COLUMN document_root TEXT")
+            .execute(&pool)
+            .await;
+        let _ =
+            sqlx::query("ALTER TABLE sites ADD COLUMN site_type TEXT NOT NULL DEFAULT 'custom'")
+                .execute(&pool)
+                .await;
+        let _ = sqlx::query("ALTER TABLE sites ADD COLUMN egg_id TEXT")
+            .execute(&pool)
+            .await;
+        let _ = sqlx::query("UPDATE sites SET egg_id = template WHERE egg_id IS NULL")
+            .execute(&pool)
+            .await;
+        let _ = sqlx::query("ALTER TABLE sites ADD COLUMN variables TEXT NOT NULL DEFAULT '{}'")
+            .execute(&pool)
+            .await;
+        let _ = sqlx::query("ALTER TABLE sites ADD COLUMN redirects TEXT NOT NULL DEFAULT '[]'")
+            .execute(&pool)
+            .await;
+        let _ = sqlx::query("ALTER TABLE sites ADD COLUMN preview_domain TEXT")
+            .execute(&pool)
+            .await;
+        let _ =
+            sqlx::query("ALTER TABLE sites ADD COLUMN wildcard_domain INTEGER NOT NULL DEFAULT 0")
+                .execute(&pool)
+                .await;
 
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS site_mail_accounts (
@@ -310,6 +454,28 @@ impl Cache {
         .await
         .context("failed to migrate site_ftp_meta table")?;
 
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS audit_events (
+                id TEXT PRIMARY KEY,
+                created_at INTEGER NOT NULL,
+                request_id TEXT,
+                actor TEXT,
+                action TEXT NOT NULL,
+                resource_type TEXT,
+                resource_id TEXT,
+                client_ip TEXT,
+                method TEXT,
+                path TEXT,
+                status INTEGER,
+                success INTEGER NOT NULL,
+                message TEXT,
+                metadata_json TEXT
+            )",
+        )
+        .execute(&pool)
+        .await
+        .context("failed to migrate audit_events table")?;
+
         Ok(Self { pool })
     }
 
@@ -317,21 +483,41 @@ impl Cache {
         &self.pool
     }
 
+    pub async fn ping(&self) -> Result<(), anyhow::Error> {
+        sqlx::query("SELECT 1")
+            .execute(&self.pool)
+            .await
+            .context("sqlite cache ping failed")?;
+        Ok(())
+    }
+
     pub async fn save_site(&self, site: &SiteRecord) -> Result<(), anyhow::Error> {
+        let domains = serde_json::to_string(&site.domains).context("failed to encode domains")?;
+        let variables =
+            serde_json::to_string(&site.variables).context("failed to encode variables")?;
+        let redirects =
+            serde_json::to_string(&site.redirects).context("failed to encode redirects")?;
+        let wildcard = i64::from(site.wildcard_domain);
         sqlx::query(
-            "INSERT INTO sites (id, name, domain, template, container_id, network, volume, git_repo, memory_mb, cpu_quota, disk_quota_mb, bandwidth_mbps, created_at)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)
+            "INSERT INTO sites (id, name, domain, template, egg_id, container_id, network, volume, git_repo, memory_mb, cpu_quota, disk_quota_mb, bandwidth_mbps, status, domains, document_root, site_type, variables, redirects, preview_domain, wildcard_domain, created_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22)
              ON CONFLICT(id) DO UPDATE SET
                name=excluded.name, domain=excluded.domain, template=excluded.template,
+               egg_id=excluded.egg_id,
                container_id=excluded.container_id, network=excluded.network,
                volume=excluded.volume, git_repo=excluded.git_repo,
                memory_mb=excluded.memory_mb, cpu_quota=excluded.cpu_quota,
-               disk_quota_mb=excluded.disk_quota_mb, bandwidth_mbps=excluded.bandwidth_mbps",
+               disk_quota_mb=excluded.disk_quota_mb, bandwidth_mbps=excluded.bandwidth_mbps,
+               status=excluded.status, domains=excluded.domains,
+               document_root=excluded.document_root, site_type=excluded.site_type,
+               variables=excluded.variables, redirects=excluded.redirects,
+               preview_domain=excluded.preview_domain, wildcard_domain=excluded.wildcard_domain",
         )
         .bind(&site.id)
         .bind(&site.name)
         .bind(&site.domain)
-        .bind(&site.template)
+        .bind(&site.egg_id)
+        .bind(&site.egg_id)
         .bind(&site.container_id)
         .bind(&site.network)
         .bind(&site.volume)
@@ -340,6 +526,14 @@ impl Cache {
         .bind(site.cpu_quota)
         .bind(site.disk_quota_mb)
         .bind(site.bandwidth_mbps)
+        .bind(&site.status)
+        .bind(&domains)
+        .bind(&site.document_root)
+        .bind(&site.site_type)
+        .bind(&variables)
+        .bind(&redirects)
+        .bind(&site.preview_domain)
+        .bind(wildcard)
         .bind(site.created_at)
         .execute(&self.pool)
         .await
@@ -348,24 +542,26 @@ impl Cache {
     }
 
     pub async fn get_site(&self, id: &str) -> Result<Option<SiteRecord>, anyhow::Error> {
-        sqlx::query_as::<_, SiteRecord>(
-            "SELECT id, name, domain, template, container_id, network, volume, git_repo, memory_mb, cpu_quota, disk_quota_mb, bandwidth_mbps, created_at
+        sqlx::query_as::<_, SiteRow>(
+            "SELECT id, name, domain, egg_id, template, container_id, network, volume, git_repo, memory_mb, cpu_quota, disk_quota_mb, bandwidth_mbps, status, domains, document_root, site_type, variables, redirects, preview_domain, wildcard_domain, created_at
              FROM sites WHERE id = ?1",
         )
         .bind(id)
         .fetch_optional(&self.pool)
         .await
         .context("failed to get site")
+        .map(|row| row.map(SiteRecord::from))
     }
 
     pub async fn list_sites(&self) -> Result<Vec<SiteRecord>, anyhow::Error> {
-        sqlx::query_as::<_, SiteRecord>(
-            "SELECT id, name, domain, template, container_id, network, volume, git_repo, memory_mb, cpu_quota, disk_quota_mb, bandwidth_mbps, created_at
+        sqlx::query_as::<_, SiteRow>(
+            "SELECT id, name, domain, egg_id, template, container_id, network, volume, git_repo, memory_mb, cpu_quota, disk_quota_mb, bandwidth_mbps, status, domains, document_root, site_type, variables, redirects, preview_domain, wildcard_domain, created_at
              FROM sites ORDER BY created_at DESC",
         )
         .fetch_all(&self.pool)
         .await
         .context("failed to list sites")
+        .map(|rows| rows.into_iter().map(SiteRecord::from).collect())
     }
 
     pub async fn delete_site(&self, id: &str) -> Result<(), anyhow::Error> {
@@ -926,5 +1122,114 @@ impl Cache {
             .await
             .context("failed to delete ftp meta")?;
         Ok(())
+    }
+
+    pub async fn save_audit_event(&self, event: &AuditEventRecord) -> Result<(), anyhow::Error> {
+        sqlx::query(
+            "INSERT INTO audit_events (
+                id, created_at, request_id, actor, action, resource_type, resource_id,
+                client_ip, method, path, status, success, message, metadata_json
+             ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)",
+        )
+        .bind(&event.id)
+        .bind(event.created_at)
+        .bind(&event.request_id)
+        .bind(&event.actor)
+        .bind(&event.action)
+        .bind(&event.resource_type)
+        .bind(&event.resource_id)
+        .bind(&event.client_ip)
+        .bind(&event.method)
+        .bind(&event.path)
+        .bind(event.status)
+        .bind(event.success)
+        .bind(&event.message)
+        .bind(&event.metadata_json)
+        .execute(&self.pool)
+        .await
+        .context("failed to save audit event")?;
+        Ok(())
+    }
+
+    pub async fn list_audit_events(
+        &self,
+        limit: i64,
+    ) -> Result<Vec<AuditEventRecord>, anyhow::Error> {
+        let limit = limit.clamp(1, 500);
+        sqlx::query_as::<_, AuditEventRecord>(
+            "SELECT id, created_at, request_id, actor, action, resource_type, resource_id,
+                    client_ip, method, path, status, success, message, metadata_json
+             FROM audit_events
+             ORDER BY created_at DESC, id DESC
+             LIMIT ?1",
+        )
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .context("failed to list audit events")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn audit_events_persist_and_list_newest_first() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let dir = tempfile::tempdir().unwrap();
+            let cache = Cache::open(dir.path().to_str().unwrap()).await.unwrap();
+
+            cache
+                .save_audit_event(&AuditEventRecord {
+                    id: "old".into(),
+                    created_at: 1,
+                    request_id: Some("req-old".into()),
+                    actor: None,
+                    action: "site.created".into(),
+                    resource_type: Some("site".into()),
+                    resource_id: Some("demo-old".into()),
+                    client_ip: Some("127.0.0.1".into()),
+                    method: Some("POST".into()),
+                    path: Some("/api/sites".into()),
+                    status: Some(201),
+                    success: 1,
+                    message: None,
+                    metadata_json: Some(r#"{"domain":"old.example"}"#.into()),
+                })
+                .await
+                .unwrap();
+
+            cache
+                .save_audit_event(&AuditEventRecord {
+                    id: "new".into(),
+                    created_at: 2,
+                    request_id: Some("req-new".into()),
+                    actor: None,
+                    action: "site.destroyed".into(),
+                    resource_type: Some("site".into()),
+                    resource_id: Some("demo-new".into()),
+                    client_ip: Some("127.0.0.1".into()),
+                    method: Some("DELETE".into()),
+                    path: Some("/api/sites/demo-new".into()),
+                    status: Some(200),
+                    success: 1,
+                    message: Some("deleted".into()),
+                    metadata_json: Some(r#"{"force":true}"#.into()),
+                })
+                .await
+                .unwrap();
+
+            let events = cache.list_audit_events(10).await.unwrap();
+            assert_eq!(events.len(), 2);
+            assert_eq!(events[0].id, "new");
+            assert_eq!(events[0].action, "site.destroyed");
+            assert_eq!(events[1].id, "old");
+
+            let limited = cache.list_audit_events(1).await.unwrap();
+            assert_eq!(limited.len(), 1);
+            assert_eq!(limited[0].id, "new");
+        });
     }
 }

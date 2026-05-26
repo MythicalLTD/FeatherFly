@@ -102,7 +102,7 @@ system:
   backup_directory: {}/backups
   pid_file: {}/featherfly.pid
 hosting:
-  templates_directory: {}/templates
+  eggs_directory: {}/eggs
 ",
         base.display(),
         base.display(),

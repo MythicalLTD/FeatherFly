@@ -10,7 +10,7 @@ pub fn secure_host_config(
     cpu_quota: Option<i64>,
     port_bindings: HashMap<String, Option<Vec<PortBinding>>>,
 ) -> HostConfig {
-    let memory = memory_mb.map(|mb| mb.saturating_mul(1024 * 1024) as i64);
+    let memory = memory_limit_bytes(memory_mb);
     let memory_swap = memory;
 
     HostConfig {
@@ -25,4 +25,8 @@ pub fn secure_host_config(
         auto_remove: Some(false),
         ..Default::default()
     }
+}
+
+pub fn memory_limit_bytes(memory_mb: Option<u64>) -> Option<i64> {
+    memory_mb.map(|mb| mb.saturating_mul(1024 * 1024).min(i64::MAX as u64) as i64)
 }

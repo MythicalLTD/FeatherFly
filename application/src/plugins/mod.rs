@@ -29,6 +29,12 @@ pub struct PluginSummary {
     pub hooks: usize,
 }
 
+#[derive(Debug, Serialize, ToSchema, Clone)]
+pub struct PluginLoadError {
+    pub path: String,
+    pub error: String,
+}
+
 struct HookRegistration {
     plugin_name: String,
     bus: SharedEventBus,
@@ -44,6 +50,7 @@ pub struct LoadedPlugin {
 pub struct PluginRegistry {
     plugins: Vec<LoadedPlugin>,
     event_bus: SharedEventBus,
+    load_errors: Vec<PluginLoadError>,
 }
 
 impl PluginRegistry {
@@ -52,6 +59,19 @@ impl PluginRegistry {
         Self {
             plugins: Vec::new(),
             event_bus: Arc::new(Mutex::new(EventBus::new())),
+            load_errors: Vec::new(),
+        }
+    }
+
+    #[must_use]
+    pub fn with_load_error(path: impl Into<String>, error: impl Into<String>) -> Self {
+        Self {
+            plugins: Vec::new(),
+            event_bus: Arc::new(Mutex::new(EventBus::new())),
+            load_errors: vec![PluginLoadError {
+                path: path.into(),
+                error: error.into(),
+            }],
         }
     }
 
@@ -61,6 +81,11 @@ impl PluginRegistry {
             .iter()
             .map(|plugin| plugin.summary.clone())
             .collect()
+    }
+
+    #[must_use]
+    pub fn load_errors(&self) -> Vec<PluginLoadError> {
+        self.load_errors.clone()
     }
 
     #[must_use]
@@ -198,6 +223,7 @@ pub fn load_directory(directory: &Path, enabled: bool) -> Result<PluginRegistry,
         return Ok(PluginRegistry {
             plugins: Vec::new(),
             event_bus,
+            load_errors: Vec::new(),
         });
     }
 
@@ -209,6 +235,7 @@ pub fn load_directory(directory: &Path, enabled: bool) -> Result<PluginRegistry,
         return Ok(PluginRegistry {
             plugins: Vec::new(),
             event_bus,
+            load_errors: Vec::new(),
         });
     }
 
@@ -230,6 +257,7 @@ pub fn load_directory(directory: &Path, enabled: bool) -> Result<PluginRegistry,
         return Ok(PluginRegistry {
             plugins: Vec::new(),
             event_bus,
+            load_errors: Vec::new(),
         });
     }
 
@@ -240,6 +268,7 @@ pub fn load_directory(directory: &Path, enabled: bool) -> Result<PluginRegistry,
     );
 
     let mut plugins = Vec::new();
+    let mut load_errors = Vec::new();
     for path in &paths {
         tracing::debug!(path = %path.display(), "loading plugin");
         match load_plugin(path, Arc::clone(&event_bus)) {
@@ -264,6 +293,10 @@ pub fn load_directory(directory: &Path, enabled: bool) -> Result<PluginRegistry,
                     error = %err,
                     "failed to load plugin"
                 );
+                load_errors.push(PluginLoadError {
+                    path: path.display().to_string(),
+                    error: err.to_string(),
+                });
             }
         }
     }
@@ -279,7 +312,11 @@ pub fn load_directory(directory: &Path, enabled: bool) -> Result<PluginRegistry,
         "plugin load complete"
     );
 
-    Ok(PluginRegistry { plugins, event_bus })
+    Ok(PluginRegistry {
+        plugins,
+        event_bus,
+        load_errors,
+    })
 }
 
 fn is_plugin_file(path: &Path) -> bool {

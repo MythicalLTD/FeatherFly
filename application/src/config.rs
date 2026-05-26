@@ -335,8 +335,8 @@ fn proxy_publish_https_port_default() -> u16 {
     443
 }
 
-fn hosting_templates_directory_default() -> String {
-    "/var/lib/featherfly/templates".into()
+fn hosting_eggs_directory_default() -> String {
+    "/var/lib/featherfly/eggs".into()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, DefaultFromSerde)]
@@ -422,8 +422,11 @@ impl ProxyConfig {
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, DefaultFromSerde)]
 pub struct HostingConfig {
-    #[serde(default = "hosting_templates_directory_default")]
-    pub templates_directory: String,
+    #[serde(
+        default = "hosting_eggs_directory_default",
+        alias = "templates_directory"
+    )]
+    pub eggs_directory: String,
 
     #[serde(default = "default_true")]
     pub auto_pull_images: bool,
@@ -489,6 +492,10 @@ pub struct HostingConfig {
     /// Optional custom 404/500/502/503 HTML templates (filenames: 404.html, etc.).
     #[serde(default = "hosting_error_pages_directory_default")]
     pub error_pages_directory: String,
+
+    /// Archived site log files retained per site (`data/sites/{id}/logs/`).
+    #[serde(default = "hosting_site_log_retention_default")]
+    pub site_log_retention: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -656,6 +663,10 @@ fn hosting_mongodb_image_default() -> String {
     "mongo:7".into()
 }
 
+fn hosting_site_log_retention_default() -> u32 {
+    30
+}
+
 fn hosting_error_pages_directory_default() -> String {
     "/var/lib/featherfly/error-pages".into()
 }
@@ -793,6 +804,14 @@ pub struct ApiConfig {
 
     #[serde(default)]
     pub disable_openapi_docs: bool,
+
+    /// Max uses per JWT `unique_id` for download/upload tokens (0 = unlimited). Wings-compatible.
+    #[serde(default = "api_max_jwt_uses_default")]
+    pub max_jwt_uses: usize,
+}
+
+fn api_max_jwt_uses_default() -> usize {
+    5
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, DefaultFromSerde)]
@@ -942,7 +961,7 @@ impl Config {
             inner.system.data.as_str(),
             inner.system.archive_directory.as_str(),
             inner.system.backup_directory.as_str(),
-            inner.hosting.templates_directory.as_str(),
+            inner.hosting.eggs_directory.as_str(),
         ] {
             std::fs::create_dir_all(dir)
                 .with_context(|| format!("failed to create directory {dir}"))?;
@@ -1116,6 +1135,7 @@ impl Config {
 
         Self::validate_inner(&new_inner)?;
         let restart_reasons = restart_reasons(&old, &new_inner);
+        let yaml = serde_norway::to_string(&new_inner).context("failed to serialize config")?;
 
         std::fs::write(&self.path, yaml)
             .with_context(|| format!("failed to write config file {}", self.path))?;
@@ -1142,6 +1162,7 @@ impl Config {
                 host: "127.0.0.1".into(),
                 port: 8080,
                 disable_openapi_docs: false,
+                max_jwt_uses: 5,
             },
             system: SystemConfig {
                 root_directory: "./data".into(),
@@ -1314,14 +1335,14 @@ system:
     }
 
     fn minimal_open_yaml(base: &Path, hosting_extra: &str) -> String {
-        let templates = base.to_string_lossy();
+        let eggs = base.to_string_lossy();
         format!(
             r"debug: true
 api:
   port: 9090
 {system}
 hosting:
-  templates_directory: {templates}/templates
+  eggs_directory: {eggs}/eggs
 {hosting_extra}",
             system = isolated_system_yaml(base)
         )
@@ -1361,6 +1382,7 @@ hosting:
                 host: "127.0.0.1".into(),
                 port: 0,
                 disable_openapi_docs: false,
+                max_jwt_uses: 5,
             },
             system: SystemConfig {
                 root_directory: "/tmp/featherfly-test".into(),

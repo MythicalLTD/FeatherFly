@@ -1,4 +1,5 @@
 pub mod actions;
+pub mod audit;
 pub mod auth;
 pub mod identity;
 pub mod logging;

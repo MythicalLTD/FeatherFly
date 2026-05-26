@@ -2,7 +2,10 @@
 
 use featherfly::config::Config;
 use featherfly::databases::DatabaseEngine;
-use featherfly::docker::{absolute_bind_path, error_pages_image, hosting_images};
+use featherfly::docker::{
+    absolute_bind_path, error_pages_image, hosting_images, memory_limit_bytes,
+};
+use featherfly::files::{disk_quota_bytes, projected_disk_usage_after_write};
 use featherfly::hosting::shared::shared_username;
 use featherfly::hosting::{ReconcileSummary, mysql_port_bindings};
 use featherfly::proxy::{TraefikEnsureResult, traefik_result_label};
@@ -100,4 +103,24 @@ fn mysql_port_bindings_use_configured_host_port() {
     };
     let bindings = mysql_port_bindings(&ports);
     assert!(bindings.contains_key("3306/tcp"));
+}
+
+#[test]
+fn memory_limit_bytes_converts_mb_for_docker() {
+    assert_eq!(memory_limit_bytes(Some(256)), Some(268_435_456));
+    assert_eq!(memory_limit_bytes(None), None);
+}
+
+#[test]
+fn disk_quota_bytes_treats_non_positive_as_unlimited() {
+    assert_eq!(disk_quota_bytes(Some(10)), Some(10_485_760));
+    assert_eq!(disk_quota_bytes(Some(0)), None);
+    assert_eq!(disk_quota_bytes(Some(-1)), None);
+    assert_eq!(disk_quota_bytes(None), None);
+}
+
+#[test]
+fn projected_disk_usage_accounts_for_overwrite() {
+    assert_eq!(projected_disk_usage_after_write(1_000, 200, 500), 1_300);
+    assert_eq!(projected_disk_usage_after_write(100, 200, 50), 50);
 }

@@ -1,6 +1,7 @@
 use crate::{
     routes::GetState,
     utils::{
+        audit::AuditEvent,
         plugin_events::{self, RestartScheduledPayload},
         response::{ApiResponse, ApiResponseResult},
     },
@@ -57,6 +58,17 @@ pub async fn post(state: GetState, axum::Json(body): axum::Json<Payload>) -> Api
     );
 
     crate::daemon_control::schedule_restart(body.delay_ms);
+
+    crate::utils::audit::record(
+        &state,
+        AuditEvent::action("system.restart_scheduled")
+            .with_resource("system", "daemon")
+            .with_metadata(serde_json::json!({
+                "delay_ms": body.delay_ms,
+                "reason": &body.reason,
+            })),
+    )
+    .await;
 
     ApiResponse::new_serialized(Response {
         scheduled: true,

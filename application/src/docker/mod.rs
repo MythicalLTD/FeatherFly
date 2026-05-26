@@ -27,9 +27,12 @@ pub use network::{
     ensure_named_bridge_network, ensure_site_network, site_network_name,
 };
 pub use paths::absolute_bind_path;
-pub use security::secure_host_config;
+pub use security::{memory_limit_bytes, secure_host_config};
 pub use stats::{HostStatsResponse, collect_host_stats};
-pub use volume_shell::{sanitize_site_path, volume_read_file, volume_run, volume_write_file};
+pub use volume_shell::{
+    sanitize_site_path, volume_file_size, volume_read_file, volume_run, volume_usage_bytes,
+    volume_write_file,
+};
 
 pub struct DockerManager {
     client: Docker,

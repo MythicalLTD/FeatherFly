@@ -220,7 +220,7 @@ fn middleware_chain(cfg: &ProxyConfig, router_key: &str) -> Option<String> {
 fn build_host_rule(hosts: &[String], path_prefix: Option<&str>) -> String {
     let host_expr = hosts
         .iter()
-        .map(|d| format!("Host(`{d}`)"))
+        .map(|d| host_matcher(d))
         .collect::<Vec<_>>()
         .join(" || ");
 
@@ -235,6 +235,78 @@ fn build_host_rule(hosts: &[String], path_prefix: Option<&str>) -> String {
         }
         None => host_expr,
     }
+}
+
+fn host_matcher(domain: &str) -> String {
+    let domain = domain.trim().trim_end_matches('.');
+    if let Some(base) = domain.strip_prefix("*.") {
+        format!("HostRegexp(`{{subdomain:[a-zA-Z0-9-]+}}.{base}`)")
+    } else {
+        format!("Host(`{domain}`)")
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RedirectSpec {
+    pub from_host: String,
+    pub to_url: String,
+    pub permanent: bool,
+}
+
+pub fn build_redirect_labels(
+    cfg: &ProxyConfig,
+    site_id: &str,
+    service_key: &str,
+    redirects: &[RedirectSpec],
+) -> HashMap<String, String> {
+    let mut labels = HashMap::new();
+    if !cfg.enabled || cfg.provider != "traefik" || redirects.is_empty() {
+        return labels;
+    }
+
+    for (idx, redirect) in redirects.iter().enumerate() {
+        let key = format!("site-{site_id}-redir-{idx}");
+        let from = redirect.from_host.trim();
+        let to = redirect.to_url.trim();
+        if from.is_empty() || to.is_empty() {
+            continue;
+        }
+        labels.insert(
+            format!("traefik.http.middlewares.{key}.redirectregex.regex"),
+            format!("^https?://{from}/(.*)"),
+        );
+        labels.insert(
+            format!("traefik.http.middlewares.{key}.redirectregex.replacement"),
+            format!("{to}/$1"),
+        );
+        labels.insert(
+            format!("traefik.http.middlewares.{key}.redirectregex.permanent"),
+            redirect.permanent.to_string(),
+        );
+        labels.insert(
+            format!("traefik.http.routers.{key}.rule"),
+            format!("Host(`{from}`)"),
+        );
+        labels.insert(
+            format!("traefik.http.routers.{key}.entrypoints"),
+            if cfg.routes_use_tls() {
+                cfg.entrypoint_https.clone()
+            } else {
+                cfg.entrypoint_http.clone()
+            },
+        );
+        labels.insert(
+            format!("traefik.http.routers.{key}.service"),
+            service_key.into(),
+        );
+        labels.insert(
+            format!("traefik.http.routers.{key}.middlewares"),
+            key.clone(),
+        );
+        labels.insert(format!("traefik.http.routers.{key}.priority"), "110".into());
+    }
+
+    labels
 }
 
 /// Add `www.` variants for apex domains (skip when already www or multi-level).

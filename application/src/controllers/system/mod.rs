@@ -1,4 +1,6 @@
+pub mod audit;
 pub mod config;
+pub mod features;
 pub mod overview;
 pub mod plugins;
 pub mod restart;
