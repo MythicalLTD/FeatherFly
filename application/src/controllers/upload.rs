@@ -3,7 +3,7 @@ use serde::Deserialize;
 use utoipa::ToSchema;
 
 use crate::{
-    files::FileService,
+    files::{FileService, is_disk_quota_error},
     remote::jwt::BasePayload,
     routes::GetState,
     site_websocket::has_permission,
@@ -110,6 +110,9 @@ pub async fn file(
 
     match FileService::upload(&state, &payload.site_id, &path, &bytes).await {
         Ok(()) => ApiResponse::new_serialized(UploadResponse { path }).ok(),
+        Err(err) if is_disk_quota_error(&err) => ApiResponse::error(&format!("{err:#}"))
+            .with_status(StatusCode::PAYLOAD_TOO_LARGE)
+            .ok(),
         Err(err) => ApiResponse::error(&format!("upload failed: {err:#}"))
             .with_status(StatusCode::BAD_GATEWAY)
             .ok(),

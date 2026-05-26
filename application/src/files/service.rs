@@ -1,3 +1,5 @@
+use std::fmt;
+
 use anyhow::Context;
 use featherfly_plugin_sdk::PluginEvent;
 use serde::{Deserialize, Serialize};
@@ -33,6 +35,24 @@ pub struct MoveCopyRequest {
 }
 
 pub struct FileService;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DiskQuotaExceeded {
+    pub projected_bytes: u64,
+    pub quota_bytes: u64,
+}
+
+impl fmt::Display for DiskQuotaExceeded {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "disk quota exceeded: projected usage {} bytes exceeds limit {} bytes",
+            self.projected_bytes, self.quota_bytes
+        )
+    }
+}
+
+impl std::error::Error for DiskQuotaExceeded {}
 
 impl FileService {
     pub async fn list(
@@ -107,14 +127,20 @@ impl FileService {
         let site = cache.get_site(site_id).await?.context("site not found")?;
         let volume = site.volume.context("site has no volume")?;
 
-        enforce_disk_quota(
+        if let Err(err) = enforce_disk_quota(
             docker.as_ref(),
             &volume,
             site.disk_quota_mb,
             path,
             bytes.len() as u64,
         )
-        .await?;
+        .await
+        {
+            if is_disk_quota_error(&err) {
+                emit(state, site_id, "quota_exceeded", path);
+            }
+            return Err(err);
+        }
 
         volume_write_file(docker.as_ref(), &volume, path, bytes).await?;
         emit(state, site_id, "upload", path);
@@ -228,9 +254,11 @@ async fn enforce_disk_quota(
         projected_disk_usage_after_write(current_usage, existing_size, incoming_bytes);
 
     if projected_usage > quota_bytes {
-        anyhow::bail!(
-            "disk quota exceeded: projected usage {projected_usage} bytes exceeds limit {quota_bytes} bytes"
-        );
+        return Err(DiskQuotaExceeded {
+            projected_bytes: projected_usage,
+            quota_bytes,
+        }
+        .into());
     }
 
     Ok(())
@@ -251,6 +279,10 @@ pub fn projected_disk_usage_after_write(
     current_usage
         .saturating_sub(existing_size)
         .saturating_add(incoming_bytes)
+}
+
+pub fn is_disk_quota_error(err: &anyhow::Error) -> bool {
+    err.downcast_ref::<DiskQuotaExceeded>().is_some()
 }
 
 fn emit(state: &State, site_id: &str, action: &str, path: &str) {

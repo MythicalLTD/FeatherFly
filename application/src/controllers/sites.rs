@@ -4,7 +4,7 @@ use crate::{
     controllers::docker::require_docker,
     databases::{CreateDatabaseRequest, DatabaseService},
     dns::{DnsService, DnsZoneStatus, SyncDnsRequest},
-    files::{FileEntry, FileService, MoveCopyRequest, RenameRequest},
+    files::{FileEntry, FileService, MoveCopyRequest, RenameRequest, is_disk_quota_error},
     ftp::{CreateFtpAccountRequest, FtpService, FtpSyncRequest},
     hosting::{HostingOverview, HostingService, SiteStats, SiteStatsService, UpdateLimitsRequest},
     mail::{CreateMailAccountRequest, MailService, MailSyncRequest},
@@ -1375,6 +1375,9 @@ pub async fn files_upload(
             audit_file(&state, "site.file_uploaded", &id, &path).await;
             ApiResponse::new_serialized(ActionResponse { id: path, ok: true }).ok()
         }
+        Err(err) if is_disk_quota_error(&err) => ApiResponse::error(&format!("{err:#}"))
+            .with_status(StatusCode::PAYLOAD_TOO_LARGE)
+            .ok(),
         Err(err) => ApiResponse::error(&format!("upload failed: {err:#}"))
             .with_status(StatusCode::BAD_GATEWAY)
             .ok(),

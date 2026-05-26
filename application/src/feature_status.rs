@@ -210,7 +210,9 @@ const ENDPOINTS: &[EndpointEntry] = &[
     entry(
         "post_upload_file",
         FeatureStatus::Implemented,
-        Some("JWT query token + multipart file field; checks site disk quota"),
+        Some(
+            "JWT query token + multipart file field; checks site disk quota and returns 413 on quota failures",
+        ),
     ),
     // System
     entry("get_system", FeatureStatus::Implemented, None),
@@ -402,7 +404,9 @@ const ENDPOINTS: &[EndpointEntry] = &[
     entry(
         "put_sites_files",
         FeatureStatus::Prototype,
-        Some("Docker volume shell; checks site disk quota before upload"),
+        Some(
+            "Docker volume shell; checks site disk quota before upload and returns 413 on quota failures",
+        ),
     ),
     entry(
         "delete_sites_files",

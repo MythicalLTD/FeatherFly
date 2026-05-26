@@ -29,8 +29,12 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt, clippy
-          cache: true
-          cache-key: ci
+          cache: false 
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2 
+        with:
+          shared-key: ci
 
       - name: Check formatting
         run: cargo fmt --all -- --check

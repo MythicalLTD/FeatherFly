@@ -5,7 +5,9 @@ use featherfly::databases::DatabaseEngine;
 use featherfly::docker::{
     absolute_bind_path, error_pages_image, hosting_images, memory_limit_bytes,
 };
-use featherfly::files::{disk_quota_bytes, projected_disk_usage_after_write};
+use featherfly::files::{
+    DiskQuotaExceeded, disk_quota_bytes, is_disk_quota_error, projected_disk_usage_after_write,
+};
 use featherfly::hosting::shared::shared_username;
 use featherfly::hosting::{ReconcileSummary, mysql_port_bindings};
 use featherfly::proxy::{TraefikEnsureResult, traefik_result_label};
@@ -123,4 +125,16 @@ fn disk_quota_bytes_treats_non_positive_as_unlimited() {
 fn projected_disk_usage_accounts_for_overwrite() {
     assert_eq!(projected_disk_usage_after_write(1_000, 200, 500), 1_300);
     assert_eq!(projected_disk_usage_after_write(100, 200, 50), 50);
+}
+
+#[test]
+fn disk_quota_error_is_typed_for_api_mapping() {
+    let err: anyhow::Error = DiskQuotaExceeded {
+        projected_bytes: 11,
+        quota_bytes: 10,
+    }
+    .into();
+
+    assert!(is_disk_quota_error(&err));
+    assert!(err.to_string().contains("disk quota exceeded"));
 }
