@@ -100,6 +100,8 @@ pub struct CloudPanelCommandPayload<'a> {
     pub command: &'a str,
     pub args: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub site_type: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<i32>,
     pub duration_ms: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -164,6 +166,7 @@ mod tests {
                 operation: "list_users",
                 command: "user:list",
                 args: Vec::new(),
+                site_type: None,
                 status: Some(0),
                 duration_ms: 1,
                 error: None,

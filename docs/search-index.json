@@ -205,29 +205,139 @@
     "text": "A plugin route handler failed. After the handler returns a negative route status or request body read fails. JSON: { plugin, method, path, error }. lifecycle event hook"
   },
   {
-    "title": "cloudpanel.command_requested",
-    "url": "plugins/events/cloudpanel-command_requested.html",
-    "text": "A CloudPanel CLI command was requested. Before CloudPanel command hooks run. JSON: { operation, command, args, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+    "title": "cloudpanel.site.create_requested",
+    "url": "plugins/events/cloudpanel-site-create_requested.html",
+    "text": "A site (webspace) create was requested. Before CloudPanel command hooks run for site:add:* operations. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
   },
   {
-    "title": "cloudpanel.command_mutated",
-    "url": "plugins/events/cloudpanel-command_mutated.html",
-    "text": "A CloudPanel command hook changed CLI args. After cloudpanel.command returns CLOUDPANEL_MODIFIED. JSON: { operation, command, args, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+    "title": "cloudpanel.site.created",
+    "url": "plugins/events/cloudpanel-site-created.html",
+    "text": "A site (webspace) was created successfully. After clpctl exits successfully for site:add:* operations. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
   },
   {
-    "title": "cloudpanel.command_cancelled",
-    "url": "plugins/events/cloudpanel-command_cancelled.html",
-    "text": "A CloudPanel command hook cancelled execution. After cloudpanel.command returns CLOUDPANEL_CANCEL. JSON: { operation, command, args, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+    "title": "cloudpanel.site.create_failed",
+    "url": "plugins/events/cloudpanel-site-create_failed.html",
+    "text": "A site (webspace) create failed or was cancelled. After hooks cancel site creation or clpctl exits with an error. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
   },
   {
-    "title": "cloudpanel.command_succeeded",
-    "url": "plugins/events/cloudpanel-command_succeeded.html",
-    "text": "A CloudPanel CLI command succeeded. After clpctl exits successfully. JSON: { operation, command, args, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+    "title": "cloudpanel.site.delete_requested",
+    "url": "plugins/events/cloudpanel-site-delete_requested.html",
+    "text": "A site (webspace) delete was requested. Before CloudPanel command hooks run for site:delete. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
   },
   {
-    "title": "cloudpanel.command_failed",
-    "url": "plugins/events/cloudpanel-command_failed.html",
-    "text": "A CloudPanel CLI command failed. After clpctl exits with a non-zero status or cannot run. JSON: { operation, command, args, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+    "title": "cloudpanel.site.deleted",
+    "url": "plugins/events/cloudpanel-site-deleted.html",
+    "text": "A site (webspace) was deleted successfully. After clpctl exits successfully for site:delete. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.site.delete_failed",
+    "url": "plugins/events/cloudpanel-site-delete_failed.html",
+    "text": "A site (webspace) delete failed or was cancelled. After hooks cancel site deletion or clpctl exits with an error. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.database.create_requested",
+    "url": "plugins/events/cloudpanel-database-create_requested.html",
+    "text": "A database create was requested. Before CloudPanel command hooks run for db:add. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.database.created",
+    "url": "plugins/events/cloudpanel-database-created.html",
+    "text": "A database was created successfully. After clpctl exits successfully for db:add. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.database.create_failed",
+    "url": "plugins/events/cloudpanel-database-create_failed.html",
+    "text": "A database create failed or was cancelled. After hooks cancel database creation or clpctl exits with an error. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.database.delete_requested",
+    "url": "plugins/events/cloudpanel-database-delete_requested.html",
+    "text": "A database delete was requested. Before CloudPanel command hooks run for db:delete. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.database.deleted",
+    "url": "plugins/events/cloudpanel-database-deleted.html",
+    "text": "A database was deleted successfully. After clpctl exits successfully for db:delete. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.database.delete_failed",
+    "url": "plugins/events/cloudpanel-database-delete_failed.html",
+    "text": "A database delete failed or was cancelled. After hooks cancel database deletion or clpctl exits with an error. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.database.export_requested",
+    "url": "plugins/events/cloudpanel-database-export_requested.html",
+    "text": "A database export was requested. Before CloudPanel command hooks run for db:export. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.database.exported",
+    "url": "plugins/events/cloudpanel-database-exported.html",
+    "text": "A database was exported successfully. After clpctl exits successfully for db:export. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.database.export_failed",
+    "url": "plugins/events/cloudpanel-database-export_failed.html",
+    "text": "A database export failed or was cancelled. After hooks cancel the export or clpctl exits with an error. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.user.password_reset_requested",
+    "url": "plugins/events/cloudpanel-user-password_reset_requested.html",
+    "text": "A user password reset was requested. Before CloudPanel command hooks run for user:reset:password. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.user.password_reset",
+    "url": "plugins/events/cloudpanel-user-password_reset.html",
+    "text": "A user password was reset successfully. After clpctl exits successfully for user:reset:password. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.user.password_reset_failed",
+    "url": "plugins/events/cloudpanel-user-password_reset_failed.html",
+    "text": "A user password reset failed or was cancelled. After hooks cancel the reset or clpctl exits with an error. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.user.mfa_disable_requested",
+    "url": "plugins/events/cloudpanel-user-mfa_disable_requested.html",
+    "text": "A user MFA disable was requested. Before CloudPanel command hooks run for user:disable:mfa. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.user.mfa_disabled",
+    "url": "plugins/events/cloudpanel-user-mfa_disabled.html",
+    "text": "User MFA was disabled successfully. After clpctl exits successfully for user:disable:mfa. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.user.mfa_disable_failed",
+    "url": "plugins/events/cloudpanel-user-mfa_disable_failed.html",
+    "text": "A user MFA disable failed or was cancelled. After hooks cancel MFA disable or clpctl exits with an error. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.certificate.install_requested",
+    "url": "plugins/events/cloudpanel-certificate-install_requested.html",
+    "text": "A Let's Encrypt certificate install was requested. Before CloudPanel command hooks run for lets-encrypt:install:certificate. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.certificate.installed",
+    "url": "plugins/events/cloudpanel-certificate-installed.html",
+    "text": "A Let's Encrypt certificate was installed successfully. After clpctl exits successfully for lets-encrypt:install:certificate. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.certificate.install_failed",
+    "url": "plugins/events/cloudpanel-certificate-install_failed.html",
+    "text": "A certificate install failed or was cancelled. After hooks cancel the install or clpctl exits with an error. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.vhost_templates.import_requested",
+    "url": "plugins/events/cloudpanel-vhost_templates-import_requested.html",
+    "text": "A vhost template import was requested. Before CloudPanel command hooks run for vhost-templates:import. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.vhost_templates.imported",
+    "url": "plugins/events/cloudpanel-vhost_templates-imported.html",
+    "text": "Vhost templates were imported successfully. After clpctl exits successfully for vhost-templates:import. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
+  },
+  {
+    "title": "cloudpanel.vhost_templates.import_failed",
+    "url": "plugins/events/cloudpanel-vhost_templates-import_failed.html",
+    "text": "A vhost template import failed or was cancelled. After hooks cancel the import or clpctl exits with an error. JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }. lifecycle event hook"
   },
   {
     "title": "config.mutate",

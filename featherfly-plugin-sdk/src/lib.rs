@@ -1,6 +1,6 @@
 pub mod metadata;
 
-pub const FEATHERFLY_PLUGIN_API_VERSION: u32 = 7;
+pub const FEATHERFLY_PLUGIN_API_VERSION: u32 = 8;
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,11 +25,33 @@ pub enum PluginEvent {
     PluginJsonActionsMutated = 18,
     PluginRouteInvoked = 19,
     PluginRouteFailed = 20,
-    CloudPanelCommandRequested = 21,
-    CloudPanelCommandMutated = 22,
-    CloudPanelCommandCancelled = 23,
-    CloudPanelCommandSucceeded = 24,
-    CloudPanelCommandFailed = 25,
+    CloudPanelSiteCreateRequested = 21,
+    CloudPanelSiteCreated = 22,
+    CloudPanelSiteCreateFailed = 23,
+    CloudPanelSiteDeleteRequested = 24,
+    CloudPanelSiteDeleted = 25,
+    CloudPanelSiteDeleteFailed = 26,
+    CloudPanelDatabaseCreateRequested = 27,
+    CloudPanelDatabaseCreated = 28,
+    CloudPanelDatabaseCreateFailed = 29,
+    CloudPanelDatabaseDeleteRequested = 30,
+    CloudPanelDatabaseDeleted = 31,
+    CloudPanelDatabaseDeleteFailed = 32,
+    CloudPanelDatabaseExportRequested = 33,
+    CloudPanelDatabaseExported = 34,
+    CloudPanelDatabaseExportFailed = 35,
+    CloudPanelUserPasswordResetRequested = 36,
+    CloudPanelUserPasswordReset = 37,
+    CloudPanelUserPasswordResetFailed = 38,
+    CloudPanelUserMfaDisableRequested = 39,
+    CloudPanelUserMfaDisabled = 40,
+    CloudPanelUserMfaDisableFailed = 41,
+    CloudPanelCertificateInstallRequested = 42,
+    CloudPanelCertificateInstalled = 43,
+    CloudPanelCertificateInstallFailed = 44,
+    CloudPanelVhostTemplatesImportRequested = 45,
+    CloudPanelVhostTemplatesImported = 46,
+    CloudPanelVhostTemplatesImportFailed = 47,
 }
 
 impl PluginEvent {
@@ -61,11 +83,41 @@ impl PluginEvent {
             Self::PluginJsonActionsMutated => "plugins.json_actions_mutated",
             Self::PluginRouteInvoked => "plugins.route_invoked",
             Self::PluginRouteFailed => "plugins.route_failed",
-            Self::CloudPanelCommandRequested => "cloudpanel.command_requested",
-            Self::CloudPanelCommandMutated => "cloudpanel.command_mutated",
-            Self::CloudPanelCommandCancelled => "cloudpanel.command_cancelled",
-            Self::CloudPanelCommandSucceeded => "cloudpanel.command_succeeded",
-            Self::CloudPanelCommandFailed => "cloudpanel.command_failed",
+            Self::CloudPanelSiteCreateRequested => "cloudpanel.site.create_requested",
+            Self::CloudPanelSiteCreated => "cloudpanel.site.created",
+            Self::CloudPanelSiteCreateFailed => "cloudpanel.site.create_failed",
+            Self::CloudPanelSiteDeleteRequested => "cloudpanel.site.delete_requested",
+            Self::CloudPanelSiteDeleted => "cloudpanel.site.deleted",
+            Self::CloudPanelSiteDeleteFailed => "cloudpanel.site.delete_failed",
+            Self::CloudPanelDatabaseCreateRequested => "cloudpanel.database.create_requested",
+            Self::CloudPanelDatabaseCreated => "cloudpanel.database.created",
+            Self::CloudPanelDatabaseCreateFailed => "cloudpanel.database.create_failed",
+            Self::CloudPanelDatabaseDeleteRequested => "cloudpanel.database.delete_requested",
+            Self::CloudPanelDatabaseDeleted => "cloudpanel.database.deleted",
+            Self::CloudPanelDatabaseDeleteFailed => "cloudpanel.database.delete_failed",
+            Self::CloudPanelDatabaseExportRequested => "cloudpanel.database.export_requested",
+            Self::CloudPanelDatabaseExported => "cloudpanel.database.exported",
+            Self::CloudPanelDatabaseExportFailed => "cloudpanel.database.export_failed",
+            Self::CloudPanelUserPasswordResetRequested => {
+                "cloudpanel.user.password_reset_requested"
+            }
+            Self::CloudPanelUserPasswordReset => "cloudpanel.user.password_reset",
+            Self::CloudPanelUserPasswordResetFailed => "cloudpanel.user.password_reset_failed",
+            Self::CloudPanelUserMfaDisableRequested => "cloudpanel.user.mfa_disable_requested",
+            Self::CloudPanelUserMfaDisabled => "cloudpanel.user.mfa_disabled",
+            Self::CloudPanelUserMfaDisableFailed => "cloudpanel.user.mfa_disable_failed",
+            Self::CloudPanelCertificateInstallRequested => {
+                "cloudpanel.certificate.install_requested"
+            }
+            Self::CloudPanelCertificateInstalled => "cloudpanel.certificate.installed",
+            Self::CloudPanelCertificateInstallFailed => "cloudpanel.certificate.install_failed",
+            Self::CloudPanelVhostTemplatesImportRequested => {
+                "cloudpanel.vhost_templates.import_requested"
+            }
+            Self::CloudPanelVhostTemplatesImported => "cloudpanel.vhost_templates.imported",
+            Self::CloudPanelVhostTemplatesImportFailed => {
+                "cloudpanel.vhost_templates.import_failed"
+            }
         }
     }
 

@@ -308,6 +308,31 @@ const JSON_EVENT_HANDLER: &str = r##"extern "C" fn on_event(ctx: *const EventCon
     HookResult::r#continue()
 }"##;
 
+macro_rules! cloudpanel_lifecycle_event {
+    (
+        $event:expr,
+        $name:literal,
+        $summary:literal,
+        $when:literal,
+        $details:literal,
+        $use_cases:expr,
+        $register:literal
+    ) => {
+        EventDoc {
+            event: $event,
+            name: $name,
+            summary: $summary,
+            when: $when,
+            payload: "JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }.",
+            cancelable: false,
+            details: $details,
+            use_cases: $use_cases,
+            register_example: $register,
+            handler_example: JSON_EVENT_HANDLER,
+        }
+    };
+}
+
 pub const EVENT_DOCS: &[EventDoc] = &[
     EventDoc {
         event: PluginEvent::DaemonStarting,
@@ -554,66 +579,256 @@ pub const EVENT_DOCS: &[EventDoc] = &[
         register_example: "hook!(host, PluginEvent::PluginRouteFailed, on_route_failed);",
         handler_example: JSON_EVENT_HANDLER,
     },
-    EventDoc {
-        event: PluginEvent::CloudPanelCommandRequested,
-        name: "cloudpanel.command_requested",
-        summary: "A CloudPanel CLI command was requested.",
-        when: "Before CloudPanel command hooks run.",
-        payload: "JSON: { operation, command, args, status?, duration_ms, error?, hook_handlers }.",
-        cancelable: false,
-        details: "Arguments are redacted before lifecycle payloads are emitted.",
-        use_cases: &["Audit CloudPanel API usage", "Track requested operations"],
-        register_example: "hook!(host, PluginEvent::CloudPanelCommandRequested, on_cloudpanel_requested);",
-        handler_example: JSON_EVENT_HANDLER,
-    },
-    EventDoc {
-        event: PluginEvent::CloudPanelCommandMutated,
-        name: "cloudpanel.command_mutated",
-        summary: "A CloudPanel command hook changed CLI args.",
-        when: "After cloudpanel.command returns CLOUDPANEL_MODIFIED.",
-        payload: "JSON: { operation, command, args, status?, duration_ms, error?, hook_handlers }.",
-        cancelable: false,
-        details: "Fires once per command when one or more CloudPanel hooks mutate the argument JSON.",
-        use_cases: &["Policy rewrites", "Default argument injection"],
-        register_example: "hook!(host, PluginEvent::CloudPanelCommandMutated, on_cloudpanel_mutated);",
-        handler_example: JSON_EVENT_HANDLER,
-    },
-    EventDoc {
-        event: PluginEvent::CloudPanelCommandCancelled,
-        name: "cloudpanel.command_cancelled",
-        summary: "A CloudPanel command hook cancelled execution.",
-        when: "After cloudpanel.command returns CLOUDPANEL_CANCEL.",
-        payload: "JSON: { operation, command, args, status?, duration_ms, error?, hook_handlers }.",
-        cancelable: false,
-        details: "No clpctl process is spawned after cancellation.",
-        use_cases: &["Block destructive commands", "Maintenance windows"],
-        register_example: "hook!(host, PluginEvent::CloudPanelCommandCancelled, on_cloudpanel_cancelled);",
-        handler_example: JSON_EVENT_HANDLER,
-    },
-    EventDoc {
-        event: PluginEvent::CloudPanelCommandSucceeded,
-        name: "cloudpanel.command_succeeded",
-        summary: "A CloudPanel CLI command succeeded.",
-        when: "After clpctl exits successfully.",
-        payload: "JSON: { operation, command, args, status?, duration_ms, error?, hook_handlers }.",
-        cancelable: false,
-        details: "Emitted after successful local CLI execution.",
-        use_cases: &["Command metrics", "Operator audit trails"],
-        register_example: "hook!(host, PluginEvent::CloudPanelCommandSucceeded, on_cloudpanel_succeeded);",
-        handler_example: JSON_EVENT_HANDLER,
-    },
-    EventDoc {
-        event: PluginEvent::CloudPanelCommandFailed,
-        name: "cloudpanel.command_failed",
-        summary: "A CloudPanel CLI command failed.",
-        when: "After clpctl exits with a non-zero status or cannot run.",
-        payload: "JSON: { operation, command, args, status?, duration_ms, error?, hook_handlers }.",
-        cancelable: false,
-        details: "The error field contains the sanitized CLI error returned to the API caller.",
-        use_cases: &["Failure alerts", "CloudPanel troubleshooting"],
-        register_example: "hook!(host, PluginEvent::CloudPanelCommandFailed, on_cloudpanel_failed);",
-        handler_example: JSON_EVENT_HANDLER,
-    },
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelSiteCreateRequested,
+        "cloudpanel.site.create_requested",
+        "A site (webspace) create was requested.",
+        "Before CloudPanel command hooks run for site:add:* operations.",
+        "Covers static, Node.js, Python, reverse-proxy, and PHP site creation. Arguments are redacted.",
+        &[
+            "Pre-provision checks",
+            "Quota enforcement before site creation"
+        ],
+        "hook!(host, PluginEvent::CloudPanelSiteCreateRequested, on_site_create_requested);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelSiteCreated,
+        "cloudpanel.site.created",
+        "A site (webspace) was created successfully.",
+        "After clpctl exits successfully for site:add:* operations.",
+        "Emitted once the CloudPanel CLI finishes creating the webspace.",
+        &[
+            "Welcome emails",
+            "DNS provisioning",
+            "Post-create automation"
+        ],
+        "hook!(host, PluginEvent::CloudPanelSiteCreated, on_site_created);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelSiteCreateFailed,
+        "cloudpanel.site.create_failed",
+        "A site (webspace) create failed or was cancelled.",
+        "After hooks cancel site creation or clpctl exits with an error.",
+        "The error field contains the cancellation reason or sanitized CLI error.",
+        &["Create failure alerts", "Rollback hooks"],
+        "hook!(host, PluginEvent::CloudPanelSiteCreateFailed, on_site_create_failed);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelSiteDeleteRequested,
+        "cloudpanel.site.delete_requested",
+        "A site (webspace) delete was requested.",
+        "Before CloudPanel command hooks run for site:delete.",
+        "Arguments are redacted before lifecycle payloads are emitted.",
+        &["Block destructive deletes", "Maintenance windows"],
+        "hook!(host, PluginEvent::CloudPanelSiteDeleteRequested, on_site_delete_requested);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelSiteDeleted,
+        "cloudpanel.site.deleted",
+        "A site (webspace) was deleted successfully.",
+        "After clpctl exits successfully for site:delete.",
+        "Emitted once the CloudPanel CLI finishes removing the webspace.",
+        &["Cleanup external resources", "Audit trails"],
+        "hook!(host, PluginEvent::CloudPanelSiteDeleted, on_site_deleted);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelSiteDeleteFailed,
+        "cloudpanel.site.delete_failed",
+        "A site (webspace) delete failed or was cancelled.",
+        "After hooks cancel site deletion or clpctl exits with an error.",
+        "The error field contains the cancellation reason or sanitized CLI error.",
+        &["Delete failure alerts", "Safety policy enforcement"],
+        "hook!(host, PluginEvent::CloudPanelSiteDeleteFailed, on_site_delete_failed);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelDatabaseCreateRequested,
+        "cloudpanel.database.create_requested",
+        "A database create was requested.",
+        "Before CloudPanel command hooks run for db:add.",
+        "Arguments are redacted before lifecycle payloads are emitted.",
+        &["Database quota checks", "Naming policy validation"],
+        "hook!(host, PluginEvent::CloudPanelDatabaseCreateRequested, on_database_create_requested);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelDatabaseCreated,
+        "cloudpanel.database.created",
+        "A database was created successfully.",
+        "After clpctl exits successfully for db:add.",
+        "Emitted once the CloudPanel CLI finishes creating the database.",
+        &["Grant external access", "Backup scheduling"],
+        "hook!(host, PluginEvent::CloudPanelDatabaseCreated, on_database_created);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelDatabaseCreateFailed,
+        "cloudpanel.database.create_failed",
+        "A database create failed or was cancelled.",
+        "After hooks cancel database creation or clpctl exits with an error.",
+        "The error field contains the cancellation reason or sanitized CLI error.",
+        &["Create failure alerts"],
+        "hook!(host, PluginEvent::CloudPanelDatabaseCreateFailed, on_database_create_failed);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelDatabaseDeleteRequested,
+        "cloudpanel.database.delete_requested",
+        "A database delete was requested.",
+        "Before CloudPanel command hooks run for db:delete.",
+        "Arguments are redacted before lifecycle payloads are emitted.",
+        &["Block destructive deletes", "Backup-before-delete checks"],
+        "hook!(host, PluginEvent::CloudPanelDatabaseDeleteRequested, on_database_delete_requested);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelDatabaseDeleted,
+        "cloudpanel.database.deleted",
+        "A database was deleted successfully.",
+        "After clpctl exits successfully for db:delete.",
+        "Emitted once the CloudPanel CLI finishes removing the database.",
+        &["Cleanup external replicas", "Audit trails"],
+        "hook!(host, PluginEvent::CloudPanelDatabaseDeleted, on_database_deleted);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelDatabaseDeleteFailed,
+        "cloudpanel.database.delete_failed",
+        "A database delete failed or was cancelled.",
+        "After hooks cancel database deletion or clpctl exits with an error.",
+        "The error field contains the cancellation reason or sanitized CLI error.",
+        &["Delete failure alerts"],
+        "hook!(host, PluginEvent::CloudPanelDatabaseDeleteFailed, on_database_delete_failed);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelDatabaseExportRequested,
+        "cloudpanel.database.export_requested",
+        "A database export was requested.",
+        "Before CloudPanel command hooks run for db:export.",
+        "Arguments are redacted before lifecycle payloads are emitted.",
+        &["Export path validation", "Rate limiting"],
+        "hook!(host, PluginEvent::CloudPanelDatabaseExportRequested, on_database_export_requested);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelDatabaseExported,
+        "cloudpanel.database.exported",
+        "A database was exported successfully.",
+        "After clpctl exits successfully for db:export.",
+        "Emitted once the CloudPanel CLI finishes writing the dump file.",
+        &["Upload to object storage", "Notify operators"],
+        "hook!(host, PluginEvent::CloudPanelDatabaseExported, on_database_exported);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelDatabaseExportFailed,
+        "cloudpanel.database.export_failed",
+        "A database export failed or was cancelled.",
+        "After hooks cancel the export or clpctl exits with an error.",
+        "The error field contains the cancellation reason or sanitized CLI error.",
+        &["Export failure alerts"],
+        "hook!(host, PluginEvent::CloudPanelDatabaseExportFailed, on_database_export_failed);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelUserPasswordResetRequested,
+        "cloudpanel.user.password_reset_requested",
+        "A user password reset was requested.",
+        "Before CloudPanel command hooks run for user:reset:password.",
+        "Password arguments are redacted before lifecycle payloads are emitted.",
+        &["Password policy checks", "Account lockout rules"],
+        "hook!(host, PluginEvent::CloudPanelUserPasswordResetRequested, on_password_reset_requested);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelUserPasswordReset,
+        "cloudpanel.user.password_reset",
+        "A user password was reset successfully.",
+        "After clpctl exits successfully for user:reset:password.",
+        "Emitted once the CloudPanel CLI finishes updating the password.",
+        &["Notify user", "Session invalidation hooks"],
+        "hook!(host, PluginEvent::CloudPanelUserPasswordReset, on_password_reset);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelUserPasswordResetFailed,
+        "cloudpanel.user.password_reset_failed",
+        "A user password reset failed or was cancelled.",
+        "After hooks cancel the reset or clpctl exits with an error.",
+        "The error field contains the cancellation reason or sanitized CLI error.",
+        &["Reset failure alerts"],
+        "hook!(host, PluginEvent::CloudPanelUserPasswordResetFailed, on_password_reset_failed);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelUserMfaDisableRequested,
+        "cloudpanel.user.mfa_disable_requested",
+        "A user MFA disable was requested.",
+        "Before CloudPanel command hooks run for user:disable:mfa.",
+        "Arguments are redacted before lifecycle payloads are emitted.",
+        &["Security policy checks", "Require approval workflows"],
+        "hook!(host, PluginEvent::CloudPanelUserMfaDisableRequested, on_mfa_disable_requested);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelUserMfaDisabled,
+        "cloudpanel.user.mfa_disabled",
+        "User MFA was disabled successfully.",
+        "After clpctl exits successfully for user:disable:mfa.",
+        "Emitted once the CloudPanel CLI finishes disabling MFA.",
+        &["Security audit logs", "Notify security team"],
+        "hook!(host, PluginEvent::CloudPanelUserMfaDisabled, on_mfa_disabled);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelUserMfaDisableFailed,
+        "cloudpanel.user.mfa_disable_failed",
+        "A user MFA disable failed or was cancelled.",
+        "After hooks cancel MFA disable or clpctl exits with an error.",
+        "The error field contains the cancellation reason or sanitized CLI error.",
+        &["Security alerts"],
+        "hook!(host, PluginEvent::CloudPanelUserMfaDisableFailed, on_mfa_disable_failed);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelCertificateInstallRequested,
+        "cloudpanel.certificate.install_requested",
+        "A Let's Encrypt certificate install was requested.",
+        "Before CloudPanel command hooks run for lets-encrypt:install:certificate.",
+        "Arguments are redacted before lifecycle payloads are emitted.",
+        &["Domain validation", "Rate limiting ACME requests"],
+        "hook!(host, PluginEvent::CloudPanelCertificateInstallRequested, on_certificate_install_requested);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelCertificateInstalled,
+        "cloudpanel.certificate.installed",
+        "A Let's Encrypt certificate was installed successfully.",
+        "After clpctl exits successfully for lets-encrypt:install:certificate.",
+        "Emitted once the CloudPanel CLI finishes installing the certificate.",
+        &["CDN upload", "Certificate expiry monitoring"],
+        "hook!(host, PluginEvent::CloudPanelCertificateInstalled, on_certificate_installed);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelCertificateInstallFailed,
+        "cloudpanel.certificate.install_failed",
+        "A certificate install failed or was cancelled.",
+        "After hooks cancel the install or clpctl exits with an error.",
+        "The error field contains the cancellation reason or sanitized CLI error.",
+        &["TLS failure alerts"],
+        "hook!(host, PluginEvent::CloudPanelCertificateInstallFailed, on_certificate_install_failed);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelVhostTemplatesImportRequested,
+        "cloudpanel.vhost_templates.import_requested",
+        "A vhost template import was requested.",
+        "Before CloudPanel command hooks run for vhost-templates:import.",
+        "No CLI arguments are required for this operation.",
+        &["Validate template sources", "Maintenance windows"],
+        "hook!(host, PluginEvent::CloudPanelVhostTemplatesImportRequested, on_vhost_import_requested);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelVhostTemplatesImported,
+        "cloudpanel.vhost_templates.imported",
+        "Vhost templates were imported successfully.",
+        "After clpctl exits successfully for vhost-templates:import.",
+        "Emitted once the CloudPanel CLI finishes importing templates.",
+        &["Template cache refresh", "Notify operators"],
+        "hook!(host, PluginEvent::CloudPanelVhostTemplatesImported, on_vhost_imported);"
+    ),
+    cloudpanel_lifecycle_event!(
+        PluginEvent::CloudPanelVhostTemplatesImportFailed,
+        "cloudpanel.vhost_templates.import_failed",
+        "A vhost template import failed or was cancelled.",
+        "After hooks cancel the import or clpctl exits with an error.",
+        "The error field contains the cancellation reason or sanitized CLI error.",
+        &["Import failure alerts"],
+        "hook!(host, PluginEvent::CloudPanelVhostTemplatesImportFailed, on_vhost_import_failed);"
+    ),
 ];
 
 pub const CONFIG_HOOK_DOCS: &[HookGuideDoc] = &[HookGuideDoc {
@@ -912,7 +1127,7 @@ This is intentionally **composable**: small plugins each do one job (add a field
 
 ### Versioning
 
-Plugin API **v7** (current) exposes lifecycle events, config mutation, request hooks, plugin routes, JSON mutation, and CloudPanel command hooks. Future hooks will bump the API version so old plugins keep loading safely when new hook types appear."#;
+Plugin API **v8** (current) exposes lifecycle events, config mutation, request hooks, plugin routes, JSON mutation, and CloudPanel command hooks. Future hooks will bump the API version so old plugins keep loading safely when new hook types appear."#;
 
 pub const PLANNED_HOOKS: &[PlannedHookDoc] = &[
     PlannedHookDoc {

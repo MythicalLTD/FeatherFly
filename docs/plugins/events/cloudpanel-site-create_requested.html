@@ -3,25 +3,25 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="cloudpanel.command_mutated — FeatherFly lifecycle event hook">
+  <meta name="description" content="cloudpanel.site.create_requested — FeatherFly lifecycle event hook">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#000000">
   <meta name="author" content="FeatherFly">
-  <link rel="canonical" href="https://mythicaltld.github.io/featherfly/plugins/events/cloudpanel-command_mutated.html">
+  <link rel="canonical" href="https://mythicaltld.github.io/featherfly/plugins/events/cloudpanel-site-create_requested.html">
   <link rel="icon" type="image/png" href="https://github.com/featherpanel-com.png">
   <link rel="apple-touch-icon" href="https://github.com/featherpanel-com.png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="FeatherFly">
-  <meta property="og:title" content="cloudpanel.command_mutated · FeatherFly">
-  <meta property="og:description" content="cloudpanel.command_mutated — FeatherFly lifecycle event hook">
-  <meta property="og:url" content="https://mythicaltld.github.io/featherfly/plugins/events/cloudpanel-command_mutated.html">
+  <meta property="og:title" content="cloudpanel.site.create_requested · FeatherFly">
+  <meta property="og:description" content="cloudpanel.site.create_requested — FeatherFly lifecycle event hook">
+  <meta property="og:url" content="https://mythicaltld.github.io/featherfly/plugins/events/cloudpanel-site-create_requested.html">
   <meta property="og:image" content="https://github.com/featherpanel-com.png">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="cloudpanel.command_mutated · FeatherFly">
-  <meta name="twitter:description" content="cloudpanel.command_mutated — FeatherFly lifecycle event hook">
+  <meta name="twitter:title" content="cloudpanel.site.create_requested · FeatherFly">
+  <meta name="twitter:description" content="cloudpanel.site.create_requested — FeatherFly lifecycle event hook">
   <meta name="twitter:image" content="https://github.com/featherpanel-com.png">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <title>cloudpanel.command_mutated · FeatherFly</title>
+  <title>cloudpanel.site.create_requested · FeatherFly</title>
   <script src="https://cdn.tailwindcss.com?v=dev"></script>
   <style>
     :root {
@@ -116,15 +116,15 @@
         </div>
       </header>
       <main class="flex-1 px-4 py-8 sm:px-10 max-w-4xl">
-        <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../../index.html">Home</a> <span>/</span><a href="../index.html">Plugins</a> <span>/</span><span>cloudpanel.command_mutated</span></nav>
+        <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../../index.html">Home</a> <span>/</span><a href="../index.html">Plugins</a> <span>/</span><span>cloudpanel.site.create_requested</span></nav>
         <div class="source-bar"><span class="source-bar-label">Source</span> <a href="https://github.com/MythicalLTD/featherfly/blob/main/application/src/plugins/events.rs" class="source-link" target="_blank" rel="noopener">Events ↗</a></div>
-        <article class="prose-docs"><h1>cloudpanel.command_mutated</h1><p class="lead">A CloudPanel command hook changed CLI args.</p>
-<div class="meta-grid"><div class="meta-item"><div class="meta-label">When</div><div class="meta-value">After cloudpanel.command returns CLOUDPANEL_MODIFIED.</div></div><div class="meta-item"><div class="meta-label">Payload</div><div class="meta-value">JSON: { operation, command, args, status?, duration_ms, error?, hook_handlers }.</div></div><div class="meta-item"><div class="meta-label">Cancelable</div><div class="meta-value">No</div></div></div>
-<p>Fires once per command when one or more CloudPanel hooks mutate the argument JSON.</p>
+        <article class="prose-docs"><h1>cloudpanel.site.create_requested</h1><p class="lead">A site (webspace) create was requested.</p>
+<div class="meta-grid"><div class="meta-item"><div class="meta-label">When</div><div class="meta-value">Before CloudPanel command hooks run for site:add:* operations.</div></div><div class="meta-item"><div class="meta-label">Payload</div><div class="meta-value">JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }.</div></div><div class="meta-item"><div class="meta-label">Cancelable</div><div class="meta-value">No</div></div></div>
+<p>Covers static, Node.js, Python, reverse-proxy, and PHP site creation. Arguments are redacted.</p>
 <h2>Use cases</h2>
-<ul><li>Policy rewrites</li><li>Default argument injection</li></ul>
+<ul><li>Pre-provision checks</li><li>Quota enforcement before site creation</li></ul>
 <h2>Example</h2>
-<details><summary>Registration and handler</summary><div class="details-body"><h4>Register</h4><pre><code>hook!(host, PluginEvent::CloudPanelCommandMutated, on_cloudpanel_mutated);</code></pre><h4>Handler</h4><pre><code>extern &quot;C&quot; fn on_event(ctx: *const EventContext) -&gt; HookResult {
+<details><summary>Registration and handler</summary><div class="details-body"><h4>Register</h4><pre><code>hook!(host, PluginEvent::CloudPanelSiteCreateRequested, on_site_create_requested);</code></pre><h4>Handler</h4><pre><code>extern &quot;C&quot; fn on_event(ctx: *const EventContext) -&gt; HookResult {
     let ctx = unsafe { &amp;*ctx };
     let payload = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
     let _json = std::str::from_utf8(payload).unwrap_or_default();

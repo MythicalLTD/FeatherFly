@@ -44,7 +44,7 @@ struct CliArg {
 }
 
 struct CommandEvent<'a> {
-    event: featherfly_plugin_sdk::PluginEvent,
+    phase: CommandPhase,
     operation: &'a str,
     command: &'a str,
     args: &'a [CliArg],
@@ -52,6 +52,105 @@ struct CommandEvent<'a> {
     duration_ms: u64,
     error: Option<&'a str>,
     hook_handlers: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CommandPhase {
+    Requested,
+    Succeeded,
+    Failed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CloudPanelLifecycle {
+    SiteCreate,
+    SiteDelete,
+    DatabaseCreate,
+    DatabaseDelete,
+    DatabaseExport,
+    UserPasswordReset,
+    UserMfaDisable,
+    CertificateInstall,
+    VhostTemplatesImport,
+}
+
+impl CloudPanelLifecycle {
+    fn from_operation(operation: &str) -> Option<Self> {
+        match operation {
+            "add_static_site"
+            | "add_nodejs_site"
+            | "add_python_site"
+            | "add_reverse_proxy_site"
+            | "add_php_site" => Some(Self::SiteCreate),
+            "delete_site" => Some(Self::SiteDelete),
+            "add_database" => Some(Self::DatabaseCreate),
+            "delete_database" => Some(Self::DatabaseDelete),
+            "export_database" => Some(Self::DatabaseExport),
+            "reset_user_password" => Some(Self::UserPasswordReset),
+            "disable_user_mfa" => Some(Self::UserMfaDisable),
+            "install_lets_encrypt_certificate" => Some(Self::CertificateInstall),
+            "import_vhost_templates" => Some(Self::VhostTemplatesImport),
+            _ => None,
+        }
+    }
+
+    fn site_type(operation: &str) -> Option<&'static str> {
+        match operation {
+            "add_static_site" => Some("static"),
+            "add_nodejs_site" => Some("nodejs"),
+            "add_python_site" => Some("python"),
+            "add_reverse_proxy_site" => Some("reverse_proxy"),
+            "add_php_site" => Some("php"),
+            _ => None,
+        }
+    }
+
+    fn event(self, phase: CommandPhase) -> featherfly_plugin_sdk::PluginEvent {
+        use featherfly_plugin_sdk::PluginEvent as E;
+        match (self, phase) {
+            (Self::SiteCreate, CommandPhase::Requested) => E::CloudPanelSiteCreateRequested,
+            (Self::SiteCreate, CommandPhase::Succeeded) => E::CloudPanelSiteCreated,
+            (Self::SiteCreate, CommandPhase::Failed) => E::CloudPanelSiteCreateFailed,
+            (Self::SiteDelete, CommandPhase::Requested) => E::CloudPanelSiteDeleteRequested,
+            (Self::SiteDelete, CommandPhase::Succeeded) => E::CloudPanelSiteDeleted,
+            (Self::SiteDelete, CommandPhase::Failed) => E::CloudPanelSiteDeleteFailed,
+            (Self::DatabaseCreate, CommandPhase::Requested) => E::CloudPanelDatabaseCreateRequested,
+            (Self::DatabaseCreate, CommandPhase::Succeeded) => E::CloudPanelDatabaseCreated,
+            (Self::DatabaseCreate, CommandPhase::Failed) => E::CloudPanelDatabaseCreateFailed,
+            (Self::DatabaseDelete, CommandPhase::Requested) => E::CloudPanelDatabaseDeleteRequested,
+            (Self::DatabaseDelete, CommandPhase::Succeeded) => E::CloudPanelDatabaseDeleted,
+            (Self::DatabaseDelete, CommandPhase::Failed) => E::CloudPanelDatabaseDeleteFailed,
+            (Self::DatabaseExport, CommandPhase::Requested) => E::CloudPanelDatabaseExportRequested,
+            (Self::DatabaseExport, CommandPhase::Succeeded) => E::CloudPanelDatabaseExported,
+            (Self::DatabaseExport, CommandPhase::Failed) => E::CloudPanelDatabaseExportFailed,
+            (Self::UserPasswordReset, CommandPhase::Requested) => {
+                E::CloudPanelUserPasswordResetRequested
+            }
+            (Self::UserPasswordReset, CommandPhase::Succeeded) => E::CloudPanelUserPasswordReset,
+            (Self::UserPasswordReset, CommandPhase::Failed) => E::CloudPanelUserPasswordResetFailed,
+            (Self::UserMfaDisable, CommandPhase::Requested) => E::CloudPanelUserMfaDisableRequested,
+            (Self::UserMfaDisable, CommandPhase::Succeeded) => E::CloudPanelUserMfaDisabled,
+            (Self::UserMfaDisable, CommandPhase::Failed) => E::CloudPanelUserMfaDisableFailed,
+            (Self::CertificateInstall, CommandPhase::Requested) => {
+                E::CloudPanelCertificateInstallRequested
+            }
+            (Self::CertificateInstall, CommandPhase::Succeeded) => {
+                E::CloudPanelCertificateInstalled
+            }
+            (Self::CertificateInstall, CommandPhase::Failed) => {
+                E::CloudPanelCertificateInstallFailed
+            }
+            (Self::VhostTemplatesImport, CommandPhase::Requested) => {
+                E::CloudPanelVhostTemplatesImportRequested
+            }
+            (Self::VhostTemplatesImport, CommandPhase::Succeeded) => {
+                E::CloudPanelVhostTemplatesImported
+            }
+            (Self::VhostTemplatesImport, CommandPhase::Failed) => {
+                E::CloudPanelVhostTemplatesImportFailed
+            }
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -493,7 +592,7 @@ async fn execute(
     emit_command_event(
         plugins,
         CommandEvent {
-            event: featherfly_plugin_sdk::PluginEvent::CloudPanelCommandRequested,
+            phase: CommandPhase::Requested,
             operation,
             command,
             args: &args,
@@ -522,7 +621,7 @@ async fn execute(
         emit_command_event(
             plugins,
             CommandEvent {
-                event: featherfly_plugin_sdk::PluginEvent::CloudPanelCommandCancelled,
+                phase: CommandPhase::Failed,
                 operation,
                 command,
                 args: &args,
@@ -536,19 +635,6 @@ async fn execute(
     }
     if hook_outcome.mutated {
         args = normalize_hook_args(&args, &hook_outcome.args_json)?;
-        emit_command_event(
-            plugins,
-            CommandEvent {
-                event: featherfly_plugin_sdk::PluginEvent::CloudPanelCommandMutated,
-                operation,
-                command,
-                args: &args,
-                status: None,
-                duration_ms: start.elapsed().as_millis() as u64,
-                error: None,
-                hook_handlers: hook_outcome.handlers_run,
-            },
-        );
     }
 
     let raw_args = match args.iter().map(CliArg::raw).collect::<Result<Vec<_>, _>>() {
@@ -575,7 +661,7 @@ async fn execute(
             emit_command_event(
                 plugins,
                 CommandEvent {
-                    event: featherfly_plugin_sdk::PluginEvent::CloudPanelCommandFailed,
+                    phase: CommandPhase::Failed,
                     operation,
                     command,
                     args: &args,
@@ -598,7 +684,7 @@ async fn execute(
         emit_command_event(
             plugins,
             CommandEvent {
-                event: featherfly_plugin_sdk::PluginEvent::CloudPanelCommandSucceeded,
+                phase: CommandPhase::Succeeded,
                 operation,
                 command,
                 args: &args,
@@ -615,7 +701,7 @@ async fn execute(
     emit_command_event(
         plugins,
         CommandEvent {
-            event: featherfly_plugin_sdk::PluginEvent::CloudPanelCommandFailed,
+            phase: CommandPhase::Failed,
             operation,
             command,
             args: &args,
@@ -660,13 +746,18 @@ fn normalize_hook_args(original: &[CliArg], args_json: &[u8]) -> Result<Vec<CliA
 }
 
 fn emit_command_event(plugins: &PluginRegistry, event: CommandEvent<'_>) {
+    let Some(lifecycle) = CloudPanelLifecycle::from_operation(event.operation) else {
+        return;
+    };
+
     plugin_events::emit_json(
         plugins,
-        event.event,
+        lifecycle.event(event.phase),
         &CloudPanelCommandPayload {
             operation: event.operation,
             command: event.command,
             args: redacted_argv(event.command, event.args),
+            site_type: CloudPanelLifecycle::site_type(event.operation),
             status: event.status,
             duration_ms: event.duration_ms,
             error: event.error,
@@ -1003,5 +1094,27 @@ mod tests {
         assert_eq!(templates[0].name, "Generic");
         assert_eq!(templates[0].root_directory, "htdocs");
         assert_eq!(templates[0].template_type, "php");
+    }
+
+    #[test]
+    fn lifecycle_events_map_write_operations() {
+        use featherfly_plugin_sdk::PluginEvent;
+
+        let lifecycle = CloudPanelLifecycle::from_operation("delete_site").unwrap();
+        assert_eq!(
+            lifecycle.event(CommandPhase::Requested),
+            PluginEvent::CloudPanelSiteDeleteRequested
+        );
+        assert_eq!(
+            lifecycle.event(CommandPhase::Succeeded),
+            PluginEvent::CloudPanelSiteDeleted
+        );
+        assert_eq!(
+            lifecycle.event(CommandPhase::Failed),
+            PluginEvent::CloudPanelSiteDeleteFailed
+        );
+
+        assert_eq!(CloudPanelLifecycle::site_type("add_php_site"), Some("php"));
+        assert!(CloudPanelLifecycle::from_operation("list_users").is_none());
     }
 }

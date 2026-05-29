@@ -3,25 +3,25 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="All FeatherFly plugin hooks — available in API v7.">
+  <meta name="description" content="cloudpanel.site.created — FeatherFly lifecycle event hook">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#000000">
   <meta name="author" content="FeatherFly">
-  <link rel="canonical" href="https://mythicaltld.github.io/featherfly/plugins/hooks-roadmap.html">
+  <link rel="canonical" href="https://mythicaltld.github.io/featherfly/plugins/events/cloudpanel-site-created.html">
   <link rel="icon" type="image/png" href="https://github.com/featherpanel-com.png">
   <link rel="apple-touch-icon" href="https://github.com/featherpanel-com.png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="FeatherFly">
-  <meta property="og:title" content="Hooks roadmap · FeatherFly">
-  <meta property="og:description" content="All FeatherFly plugin hooks — available in API v7.">
-  <meta property="og:url" content="https://mythicaltld.github.io/featherfly/plugins/hooks-roadmap.html">
+  <meta property="og:title" content="cloudpanel.site.created · FeatherFly">
+  <meta property="og:description" content="cloudpanel.site.created — FeatherFly lifecycle event hook">
+  <meta property="og:url" content="https://mythicaltld.github.io/featherfly/plugins/events/cloudpanel-site-created.html">
   <meta property="og:image" content="https://github.com/featherpanel-com.png">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Hooks roadmap · FeatherFly">
-  <meta name="twitter:description" content="All FeatherFly plugin hooks — available in API v7.">
+  <meta name="twitter:title" content="cloudpanel.site.created · FeatherFly">
+  <meta name="twitter:description" content="cloudpanel.site.created — FeatherFly lifecycle event hook">
   <meta name="twitter:image" content="https://github.com/featherpanel-com.png">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <title>Hooks roadmap · FeatherFly</title>
+  <title>cloudpanel.site.created · FeatherFly</title>
   <script src="https://cdn.tailwindcss.com?v=dev"></script>
   <style>
     :root {
@@ -96,7 +96,7 @@
       <div class="p-4 border-b border-[#1a1a1a] flex items-center gap-3">
         <img src="https://github.com/featherpanel-com.png" alt="FeatherFly" width="36" height="36" class="rounded-full border border-[#1a1a1a]">
         <div>
-          <a href="../index.html" class="font-semibold no-underline text-white block">FeatherFly</a>
+          <a href="../../index.html" class="font-semibold no-underline text-white block">FeatherFly</a>
           <p class="text-xs text-[#555555]">Documentation</p>
         </div>
       </div>
@@ -104,7 +104,7 @@
         <input id="doc-search" type="search" placeholder="Search docs…" class="search-input" autocomplete="off" aria-label="Search documentation">
         <div id="search-results" class="search-results hidden"></div>
       </div>
-      <nav class="p-2 pb-8" aria-label="Documentation"><div class="sidebar-group">Start</div><a href="../index.html" class="sidebar-link">Home</a><div class="sidebar-group">Plugins</div><a href="index.html" class="sidebar-link">Introduction</a><a href="getting-started.html" class="sidebar-link">Getting started</a><a href="overview.html" class="sidebar-link">Overview</a><a href="terminology.html" class="sidebar-link">Terminology</a><a href="architecture.html" class="sidebar-link">Architecture</a><a href="hooks-roadmap.html" class="sidebar-link sidebar-link-active">Hooks roadmap</a><a href="events/index.html" class="sidebar-link">Events</a><a href="config-hooks/index.html" class="sidebar-link">Config hooks</a><a href="config-hooks/mutate.html" class="sidebar-sublink">config.mutate</a><a href="request-hooks/index.html" class="sidebar-link">Request hooks</a><a href="request-hooks/intercept.html" class="sidebar-sublink">request.intercept</a><a href="request-hooks/middleware.html" class="sidebar-sublink">middleware.inject</a><a href="routes/index.html" class="sidebar-link">Plugin routes</a><a href="routes/register.html" class="sidebar-sublink">route.register</a><a href="json-hooks/index.html" class="sidebar-link">JSON hooks</a><a href="json-hooks/response-body.html" class="sidebar-sublink">json.response</a><a href="json-hooks/response-actions.html" class="sidebar-sublink">json.actions</a><a href="host-api.html" class="sidebar-link">Host API</a><a href="macros.html" class="sidebar-link">Macros</a><a href="return-codes.html" class="sidebar-link">Return codes</a><a href="source-tree.html" class="sidebar-link">Source tree</a><a href="example.html" class="sidebar-link">Full example</a><div class="sidebar-group">Reference</div><a href="../plugins-reference.txt" class="sidebar-link">Plugin reference</a></nav>
+      <nav class="p-2 pb-8" aria-label="Documentation"><div class="sidebar-group">Start</div><a href="../../index.html" class="sidebar-link">Home</a><div class="sidebar-group">Plugins</div><a href="../index.html" class="sidebar-link">Introduction</a><a href="../getting-started.html" class="sidebar-link">Getting started</a><a href="../overview.html" class="sidebar-link">Overview</a><a href="../terminology.html" class="sidebar-link">Terminology</a><a href="../architecture.html" class="sidebar-link">Architecture</a><a href="../hooks-roadmap.html" class="sidebar-link">Hooks roadmap</a><a href="index.html" class="sidebar-link sidebar-link-active">Events</a><a href="../config-hooks/index.html" class="sidebar-link">Config hooks</a><a href="../config-hooks/mutate.html" class="sidebar-sublink">config.mutate</a><a href="../request-hooks/index.html" class="sidebar-link">Request hooks</a><a href="../request-hooks/intercept.html" class="sidebar-sublink">request.intercept</a><a href="../request-hooks/middleware.html" class="sidebar-sublink">middleware.inject</a><a href="../routes/index.html" class="sidebar-link">Plugin routes</a><a href="../routes/register.html" class="sidebar-sublink">route.register</a><a href="../json-hooks/index.html" class="sidebar-link">JSON hooks</a><a href="../json-hooks/response-body.html" class="sidebar-sublink">json.response</a><a href="../json-hooks/response-actions.html" class="sidebar-sublink">json.actions</a><a href="../host-api.html" class="sidebar-link">Host API</a><a href="../macros.html" class="sidebar-link">Macros</a><a href="../return-codes.html" class="sidebar-link">Return codes</a><a href="../source-tree.html" class="sidebar-link">Source tree</a><a href="../example.html" class="sidebar-link">Full example</a><div class="sidebar-group">Reference</div><a href="../../plugins-reference.txt" class="sidebar-link">Plugin reference</a></nav>
     </aside>
     <div id="sidebar-backdrop" class="fixed inset-0 z-30 bg-black/80 hidden lg:hidden"></div>
     <div class="flex-1 flex flex-col min-w-0 lg:ml-72">
@@ -116,12 +116,21 @@
         </div>
       </header>
       <main class="flex-1 px-4 py-8 sm:px-10 max-w-4xl">
-        <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../index.html">Home</a> <span>/</span><a href="index.html">Plugins</a> <span>/</span><span>Hooks roadmap</span></nav>
-        
-        <article class="prose-docs"><h1>Hooks roadmap</h1><p class="lead">Every plugin hook type and where to read how it works.</p>
-<p>Plugin API v8. All hooks listed as <code>available</code> ship today in v7.</p>
-<table><thead><tr><th>Hook</th><th>Status</th><th>Summary</th><th>Mixin role</th></tr></thead><tbody><tr><td><code>config.loaded</code></td><td>available</td><td>Read-only notification when config YAML is parsed.</td><td>Observe before plugins load; validate or log config.</td></tr><tr><td><code>plugin.loaded</code></td><td>available</td><td>Fires after each plugin finishes init.</td><td>Coordinate between plugins; detect dependencies.</td></tr><tr><td><code>daemon.starting / started / stopping</code></td><td>available</td><td>Startup and shutdown lifecycle markers.</td><td>Warm caches, bind integrations, graceful teardown.</td></tr><tr><td><code>json.response</code></td><td>available</td><td>Mutate full JSON response objects.</td><td>Mixin layer on response body — add/remove/rename fields.</td></tr><tr><td><code>json.actions</code></td><td>available</td><td>Mutate the top-level actions array.</td><td>Mixin layer on panel wizard steps.</td></tr><tr><td><code>config.mutate</code></td><td>available</td><td>Rewrite config YAML bytes before FeatherFly applies settings.</td><td>Mixin on config load — inject defaults, strip keys, env-specific overrides.</td></tr><tr><td><code>request.intercept</code></td><td>available</td><td>Run before an HTTP handler; inspect method, path, headers.</td><td>Mixin on inbound requests — auth plugins, rate limits, audit logging.</td></tr><tr><td><code>route.register</code></td><td>available</td><td>Let plugins expose new HTTP routes through the daemon router.</td><td>Extend the API surface without forking FeatherFly.</td></tr><tr><td><code>middleware.inject</code></td><td>available</td><td>Insert Axum middleware layers from plugins.</td><td>Cross-cutting concerns (tracing, CORS overrides) as plugins.</td></tr><tr><td><code>cloudpanel.command</code></td><td>available</td><td>Inspect, mutate, or cancel CloudPanel CLI command args.</td><td>Mixin on CloudPanel operations — policy, defaults, audit.</td></tr></tbody></table>
-<p>Documentation: <a href="config-hooks/index.html">config</a> · <a href="request-hooks/index.html">request</a> · <a href="routes/index.html">routes</a> · <a href="json-hooks/index.html">JSON</a> · <a href="events/index.html">lifecycle</a></p></article>
+        <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../../index.html">Home</a> <span>/</span><a href="../index.html">Plugins</a> <span>/</span><span>cloudpanel.site.created</span></nav>
+        <div class="source-bar"><span class="source-bar-label">Source</span> <a href="https://github.com/MythicalLTD/featherfly/blob/main/application/src/plugins/events.rs" class="source-link" target="_blank" rel="noopener">Events ↗</a></div>
+        <article class="prose-docs"><h1>cloudpanel.site.created</h1><p class="lead">A site (webspace) was created successfully.</p>
+<div class="meta-grid"><div class="meta-item"><div class="meta-label">When</div><div class="meta-value">After clpctl exits successfully for site:add:* operations.</div></div><div class="meta-item"><div class="meta-label">Payload</div><div class="meta-value">JSON: { operation, command, args, siteType?, status?, duration_ms, error?, hook_handlers }.</div></div><div class="meta-item"><div class="meta-label">Cancelable</div><div class="meta-value">No</div></div></div>
+<p>Emitted once the CloudPanel CLI finishes creating the webspace.</p>
+<h2>Use cases</h2>
+<ul><li>Welcome emails</li><li>DNS provisioning</li><li>Post-create automation</li></ul>
+<h2>Example</h2>
+<details><summary>Registration and handler</summary><div class="details-body"><h4>Register</h4><pre><code>hook!(host, PluginEvent::CloudPanelSiteCreated, on_site_created);</code></pre><h4>Handler</h4><pre><code>extern &quot;C&quot; fn on_event(ctx: *const EventContext) -&gt; HookResult {
+    let ctx = unsafe { &amp;*ctx };
+    let payload = unsafe { std::slice::from_raw_parts(ctx.payload_ptr, ctx.payload_len) };
+    let _json = std::str::from_utf8(payload).unwrap_or_default();
+    HookResult::r#continue()
+}</code></pre></div></details>
+<p><a href="index.html">← All lifecycle events</a></p></article>
       </main>
       <footer class="border-t border-[#1a1a1a] py-6 px-4 text-center text-xs text-[#555555]">
         <img src="https://github.com/featherpanel-com.png" alt="" width="20" height="20" class="inline-block rounded-full mr-2 opacity-60">
@@ -134,8 +143,8 @@
   </div>
   <script>
     (function () {
-      const fromDir = "plugins/";
-      const searchIndexUrl = "../search-index.json";
+      const fromDir = "plugins/events/";
+      const searchIndexUrl = "../../search-index.json";
 
       const sidebar = document.getElementById('sidebar');
       const backdrop = document.getElementById('sidebar-backdrop');
