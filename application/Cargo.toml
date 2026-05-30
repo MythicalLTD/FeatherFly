@@ -52,7 +52,7 @@ anyhow = { workspace = true }
 axum = { workspace = true }
 featherfly-docgen = { path = "../docgen" }
 featherfly-plugin-sdk = { workspace = true }
-libloading = "0.8.8"
+libloading = "0.9.0"
 serde = { workspace = true }
 tokio = { workspace = true }
 colored = "3.0.0"
@@ -60,11 +60,11 @@ clap = { version = "4.5.37", features = ["derive", "string"] }
 serde_norway = "0.9.42"
 arc-swap = "1.9.1"
 chrono = { version = "0.4.40", features = ["serde"] }
-sysinfo = "0.39.0"
+sysinfo = "0.39.3"
 constant_time_eq = "0.5.0"
 serde_json = "1.0.139"
-uuid = { version = "1.16.0", features = ["v4"] }
-getrandom = "0.3.3"
+uuid = { version = "1.23.2", features = ["v4"] }
+getrandom = "0.4.2"
 
 [dev-dependencies]
 tempfile = "3.25.0"
